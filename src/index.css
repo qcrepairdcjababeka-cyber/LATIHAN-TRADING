@@ -1,0 +1,90 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Custom scrollbars for the application */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #020617; /* slate-950 */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e1b4b; /* indigo-950 */
+  border-radius: 4px;
+  border: 1.5px solid #312e81; /* indigo-900 */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #312e81; /* indigo-900 */
+}
+
+/* Beautiful trade card glow effect */
+.glow-card-green {
+  box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.15);
+}
+
+.glow-card-purple {
+  box-shadow: 0 0 20px -5px rgba(99, 102, 241, 0.15);
+}
+
+/* Smooth layout animations */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 12px;
+  width: 12px;
+  border-radius: 50%;
+  background: #4f46e5; /* indigo-600 */
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(79, 70, 229, 0.5);
+}
+
+@keyframes borderPulseBuy {
+  0% {
+    border-color: rgba(16, 185, 129, 0.3);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.15);
+  }
+  50% {
+    border-color: rgba(16, 185, 129, 0.85);
+    box-shadow: 0 0 14px 2px rgba(16, 185, 129, 0.4);
+  }
+  100% {
+    border-color: rgba(16, 185, 129, 0.3);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes borderPulseSell {
+  0% {
+    border-color: rgba(239, 68, 68, 0.3);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.15);
+  }
+  50% {
+    border-color: rgba(239, 68, 68, 0.85);
+    box-shadow: 0 0 14px 2px rgba(239, 68, 68, 0.4);
+  }
+  100% {
+    border-color: rgba(239, 68, 68, 0.3);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.animate-border-pulse-buy {
+  animation: borderPulseBuy 1.4s infinite ease-in-out;
+}
+
+.animate-border-pulse-sell {
+  animation: borderPulseSell 1.4s infinite ease-in-out;
+}
