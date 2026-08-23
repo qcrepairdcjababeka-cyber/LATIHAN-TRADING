@@ -202,29 +202,32 @@ function scanSpecificBox(
   symbol: string,
   box: SingleBox,
   h4Box: H4Box,
-  fiveMinCandles: Candle[],
-  boxNumber: 2 | 3
+  targetCandles: Candle[],
+  boxNumber: 2 | 3,
+  timeframe: '5m' | '15m' = '5m'
 ): { signal: TradingSignal | null; latestAnalysis: FiveMinCandleAnalysis | null } {
-  const recentCount = Math.min(10, fiveMinCandles.length);
-  const recent5m = fiveMinCandles.slice(-recentCount);
+  const recentCount = Math.min(10, targetCandles.length);
+  const recentCandles = targetCandles.slice(-recentCount);
   let latestAnalysis: FiveMinCandleAnalysis | null = null;
   let signal: TradingSignal | null = null;
 
-  for (let i = recent5m.length - 1; i >= 1; i--) {
-    const c2 = recent5m[i]; // Candle Konfirmasi ke-2 (Trigger Sinyal)
-    const c1 = recent5m[i - 1]; // Candle Konfirmasi ke-1
-    const globalIdx2 = fiveMinCandles.length - recent5m.length + i;
+  const tfUpper = timeframe.toUpperCase();
+
+  for (let i = recentCandles.length - 1; i >= 1; i--) {
+    const c2 = recentCandles[i]; // Candle Konfirmasi ke-2 (Trigger Sinyal)
+    const c1 = recentCandles[i - 1]; // Candle Konfirmasi ke-1
+    const globalIdx2 = targetCandles.length - recentCandles.length + i;
     const globalIdx1 = globalIdx2 - 1;
 
-    const analysis2 = analyze5mCandle(c2, globalIdx2, box, fiveMinCandles, boxNumber);
-    const analysis1 = analyze5mCandle(c1, globalIdx1, box, fiveMinCandles, boxNumber);
+    const analysis2 = analyze5mCandle(c2, globalIdx2, box, targetCandles, boxNumber);
+    const analysis1 = analyze5mCandle(c1, globalIdx1, box, targetCandles, boxNumber);
 
-    if (i === recent5m.length - 1) {
+    if (i === recentCandles.length - 1) {
       latestAnalysis = analysis2;
     }
 
     const lookbackStart = Math.max(0, globalIdx1 - 10);
-    const priorCandles = fiveMinCandles.slice(lookbackStart, globalIdx1);
+    const priorCandles = targetCandles.slice(lookbackStart, globalIdx1);
 
     // STRICT BREAKOUT REQUIREMENT (Bukan Cuma Wick):
     // Chart harus benar-benar keluar box terlebih dahulu (candle closes outside atau open outside).
@@ -251,16 +254,14 @@ function scanSpecificBox(
     const isBullishCandle = c2.close >= c2.open;
     const isBearishCandle = c2.close < c2.open;
 
-    // BUY SIGNAL: Lilin 5M Masuk ke dalam Box H4 dari bawah (Setelah chart benar-benar breakout keluar ke bawah)
-    // Sesuai tanda kotak merah: candle masuk/menembus batas bawah box dan closing di dalam box
+    // BUY SIGNAL: Lilin Masuk ke dalam Box H4 dari bawah (Setelah chart benar-benar breakout keluar ke bawah)
     const isEnteringFromBelow = 
       hadGenuineBreakoutBelow &&
       c2.close >= box.bottom &&
       c2.close <= box.top &&
       (c1WasOutsideBelow || c2StartedOutsideBelow || priorClosedBelow);
 
-    // SELL SIGNAL: Lilin 5M Masuk ke dalam Box H4 dari atas (Setelah chart benar-benar breakout keluar ke atas)
-    // Sesuai tanda kotak merah: candle masuk/menembus batas atas box dan closing di dalam box
+    // SELL SIGNAL: Lilin Masuk ke dalam Box H4 dari atas (Setelah chart benar-benar breakout keluar ke atas)
     const isEnteringFromAbove = 
       hadGenuineBreakoutAbove &&
       c2.close <= box.top &&
@@ -294,10 +295,10 @@ function scanSpecificBox(
         const pct2 = Math.round(analysis2.bodyRatio * 100);
 
         signal = {
-          id: `SIG-FLIP-SELL-${symbol}-B${boxNumber}-${c2.time}`,
+          id: `SIG-FLIP-SELL-${symbol}-${tfUpper}-B${boxNumber}-${c2.time}`,
           type: 'SELL',
           symbol,
-          timeframe: '5m',
+          timeframe,
           h4Box,
           targetBoxName,
           targetBoxNumber: boxNumber,
@@ -311,17 +312,17 @@ function scanSpecificBox(
           takeProfit2: tp2,
           takeProfit3: tp3,
           riskRewardRatio: rrRatio > 0 ? rrRatio : 2.5,
-          setupType: `⚠️ BUY DIBATALKAN ➔ BERUBAH MENJADI SELL (Lilin Masuk Lemah / Dibalas Bearish)`,
-          explanation: `Candle 5M mencoba masuk Box H4 #${boxNumber} dari bawah setelah breakout keluar, namun terdeteksi WEAK (${pct2}% body) atau candle bullish langsung dibarengi candle bearish penolakan. Sinyal BUY otomatis DICANCEL dan berbalik menjadi SELL. Target TP 1: Garis Tengah ($${formatPrice(tp1)}), TP 2: Batas Bawah Box ($${formatPrice(tp2)}).`,
+          setupType: `⚠️ BUY DIBATALKAN ➔ BERUBAH MENJADI SELL (TF ${tfUpper} - Lilin Masuk Lemah / Dibalas Bearish)`,
+          explanation: `Candle ${tfUpper} mencoba masuk Box H4 #${boxNumber} dari bawah setelah breakout keluar, namun terdeteksi WEAK (${pct2}% body) atau candle bullish langsung dibarengi candle bearish penolakan. Sinyal BUY otomatis DICANCEL dan berbalik menjadi SELL. Target TP 1: Garis Tengah ($${formatPrice(tp1)}), TP 2: Batas Bawah Box ($${formatPrice(tp2)}).`,
           timestamp: c2.time,
           status: 'active',
-          confirmation: `⚠️ BUY CANCEL ➔ FLIP SELL (${isWeakEntry ? 'Candle Lemah <50%' : 'Bullish Dibalas Bearish'}) &bull; TP 1: Garis Tengah ($${formatPrice(tp1)}) &bull; TP 2: Batas Bawah ($${formatPrice(tp2)})`,
+          confirmation: `⚠️ BUY CANCEL ➔ FLIP SELL (${tfUpper}: ${isWeakEntry ? 'Candle Lemah <50%' : 'Bullish Dibalas Bearish'}) &bull; TP 1: Garis Tengah ($${formatPrice(tp1)}) &bull; TP 2: Batas Bawah ($${formatPrice(tp2)})`,
           bodyRatioPercent: pct2,
           firstBodyRatioPercent: pct1,
           isFlipped: true,
           flippedFrom: 'BUY',
           invalidationReason: isWeakEntry 
-            ? `Candle 5M masuk box lemah (body ${pct2}% < 50%)`
+            ? `Candle ${tfUpper} masuk box lemah (body ${pct2}% < 50%)`
             : `Candle bullish masuk box langsung dibarengi candle bearish`,
         };
         break;
@@ -345,10 +346,10 @@ function scanSpecificBox(
         const pct2 = Math.round(analysis2.bodyRatio * 100);
 
         signal = {
-          id: `SIG-BUY-${symbol}-B${boxNumber}-${c2.time}`,
+          id: `SIG-BUY-${symbol}-${tfUpper}-B${boxNumber}-${c2.time}`,
           type: 'BUY',
           symbol,
-          timeframe: '5m',
+          timeframe,
           h4Box,
           targetBoxName,
           targetBoxNumber: boxNumber,
@@ -362,11 +363,11 @@ function scanSpecificBox(
           takeProfit2: tp2,
           takeProfit3: tp3,
           riskRewardRatio: rrRatio > 0 ? rrRatio : 2.5,
-          setupType: `Lilin 5M Masuk Box H4 #${boxNumber} ➔ Sinyal BUY (TP1: Garis Tengah, TP2: Box Atas)`,
-          explanation: `Candle 5M Bullish Kuat (${pct2}% body @ ${c2.timeString}) berhasil masuk ke dalam ${targetBoxName} ($${formatPrice(box.bottom)} - $${formatPrice(box.top)}) setelah breakout ke bawah. Target TP 1 berada pada Garis Tengah Hitam ($${formatPrice(tp1)}) dan TP 2 pada Batas Atas Box ($${formatPrice(tp2)}).`,
+          setupType: `Lilin ${tfUpper} Masuk Box H4 #${boxNumber} ➔ Sinyal BUY (TP1: Garis Tengah, TP2: Box Atas)`,
+          explanation: `Candle ${tfUpper} Bullish Kuat (${pct2}% body @ ${c2.timeString}) berhasil masuk ke dalam ${targetBoxName} ($${formatPrice(box.bottom)} - $${formatPrice(box.top)}) setelah breakout ke bawah. Target TP 1 berada pada Garis Tengah Hitam ($${formatPrice(tp1)}) dan TP 2 pada Batas Atas Box ($${formatPrice(tp2)}).`,
           timestamp: c2.time,
           status: 'active',
-          confirmation: `Lilin 5M Masuk Box #${boxNumber} ➔ TP 1: Garis Tengah ($${formatPrice(tp1)}) &bull; TP 2: Box Atas ($${formatPrice(tp2)})`,
+          confirmation: `Lilin ${tfUpper} Masuk Box #${boxNumber} ➔ TP 1: Garis Tengah ($${formatPrice(tp1)}) &bull; TP 2: Box Atas ($${formatPrice(tp2)})`,
           bodyRatioPercent: pct2,
           firstBodyRatioPercent: pct1,
         };
@@ -400,10 +401,10 @@ function scanSpecificBox(
         const pct2 = Math.round(analysis2.bodyRatio * 100);
 
         signal = {
-          id: `SIG-FLIP-BUY-${symbol}-B${boxNumber}-${c2.time}`,
+          id: `SIG-FLIP-BUY-${symbol}-${tfUpper}-B${boxNumber}-${c2.time}`,
           type: 'BUY',
           symbol,
-          timeframe: '5m',
+          timeframe,
           h4Box,
           targetBoxName,
           targetBoxNumber: boxNumber,
@@ -417,17 +418,17 @@ function scanSpecificBox(
           takeProfit2: tp2,
           takeProfit3: tp3,
           riskRewardRatio: rrRatio > 0 ? rrRatio : 2.5,
-          setupType: `⚠️ SELL DIBATALKAN ➔ BERUBAH MENJADI BUY (Lilin Masuk Lemah / Dibalas Bullish)`,
-          explanation: `Candle 5M mencoba masuk Box H4 #${boxNumber} dari atas setelah breakout keluar, namun terdeteksi WEAK (${pct2}% body) atau candle bearish langsung dibarengi candle bullish penolakan. Sinyal SELL otomatis DICANCEL dan berbalik menjadi BUY. Target TP 1: Garis Tengah ($${formatPrice(tp1)}), TP 2: Batas Atas Box ($${formatPrice(tp2)}).`,
+          setupType: `⚠️ SELL DIBATALKAN ➔ BERUBAH MENJADI BUY (TF ${tfUpper} - Lilin Masuk Lemah / Dibalas Bullish)`,
+          explanation: `Candle ${tfUpper} mencoba masuk Box H4 #${boxNumber} dari atas setelah breakout keluar, namun terdeteksi WEAK (${pct2}% body) atau candle bearish langsung dibarengi candle bullish penolakan. Sinyal SELL otomatis DICANCEL dan berbalik menjadi BUY. Target TP 1: Garis Tengah ($${formatPrice(tp1)}), TP 2: Batas Atas Box ($${formatPrice(tp2)}).`,
           timestamp: c2.time,
           status: 'active',
-          confirmation: `⚠️ SELL CANCEL ➔ FLIP BUY (${isWeakEntry ? 'Candle Lemah <50%' : 'Bearish Dibalas Bullish'}) &bull; TP 1: Garis Tengah ($${formatPrice(tp1)}) &bull; TP 2: Batas Atas ($${formatPrice(tp2)})`,
+          confirmation: `⚠️ SELL CANCEL ➔ FLIP BUY (${tfUpper}: ${isWeakEntry ? 'Candle Lemah <50%' : 'Bearish Dibalas Bullish'}) &bull; TP 1: Garis Tengah ($${formatPrice(tp1)}) &bull; TP 2: Batas Atas ($${formatPrice(tp2)})`,
           bodyRatioPercent: pct2,
           firstBodyRatioPercent: pct1,
           isFlipped: true,
           flippedFrom: 'SELL',
           invalidationReason: isWeakEntry 
-            ? `Candle 5M masuk box lemah (body ${pct2}% < 50%)`
+            ? `Candle ${tfUpper} masuk box lemah (body ${pct2}% < 50%)`
             : `Candle bearish masuk box langsung dibarengi candle bullish`,
         };
         break;
@@ -451,10 +452,10 @@ function scanSpecificBox(
         const pct2 = Math.round(analysis2.bodyRatio * 100);
 
         signal = {
-          id: `SIG-SELL-${symbol}-B${boxNumber}-${c2.time}`,
+          id: `SIG-SELL-${symbol}-${tfUpper}-B${boxNumber}-${c2.time}`,
           type: 'SELL',
           symbol,
-          timeframe: '5m',
+          timeframe,
           h4Box,
           targetBoxName,
           targetBoxNumber: boxNumber,
@@ -468,11 +469,11 @@ function scanSpecificBox(
           takeProfit2: tp2,
           takeProfit3: tp3,
           riskRewardRatio: rrRatio > 0 ? rrRatio : 2.5,
-          setupType: `Lilin 5M Masuk Box H4 #${boxNumber} ➔ Sinyal SELL (TP1: Garis Tengah, TP2: Box Bawah)`,
-          explanation: `Candle 5M Bearish Kuat (${pct2}% body @ ${c2.timeString}) berhasil masuk ke dalam ${targetBoxName} ($${formatPrice(box.bottom)} - $${formatPrice(box.top)}) setelah breakout ke atas. Target TP 1 berada pada Garis Tengah Hitam ($${formatPrice(tp1)}) dan TP 2 pada Batas Bawah Box ($${formatPrice(tp2)}).`,
+          setupType: `Lilin ${tfUpper} Masuk Box H4 #${boxNumber} ➔ Sinyal SELL (TP1: Garis Tengah, TP2: Box Bawah)`,
+          explanation: `Candle ${tfUpper} Bearish Kuat (${pct2}% body @ ${c2.timeString}) berhasil masuk ke dalam ${targetBoxName} ($${formatPrice(box.bottom)} - $${formatPrice(box.top)}) setelah breakout ke atas. Target TP 1 berada pada Garis Tengah Hitam ($${formatPrice(tp1)}) dan TP 2 pada Batas Bawah Box ($${formatPrice(tp2)}).`,
           timestamp: c2.time,
           status: 'active',
-          confirmation: `Lilin 5M Masuk Box #${boxNumber} ➔ TP 1: Garis Tengah ($${formatPrice(tp1)}) &bull; TP 2: Box Bawah ($${formatPrice(tp2)})`,
+          confirmation: `Lilin ${tfUpper} Masuk Box #${boxNumber} ➔ TP 1: Garis Tengah ($${formatPrice(tp1)}) &bull; TP 2: Box Bawah ($${formatPrice(tp2)})`,
           bodyRatioPercent: pct2,
           firstBodyRatioPercent: pct1,
         };
@@ -485,13 +486,15 @@ function scanSpecificBox(
 }
 
 /**
- * Scans H4 candles (Box Lilin #2 & Box Lilin #3) and 5M candles:
- * Produces separate signals for Chart 2 (Box #2) and Chart 3 (Box #3).
+ * Scans H4 candles (Box Lilin #2 & Box Lilin #3), 5M candles, and optional 15M candles:
+ * Produces separate signals for Chart 2 (5M Box #2), Chart 3 (5M Box #3),
+ * Chart 4 (15M Box #2), and Chart 5 (15M Box #3).
  */
 export function scanH4BoxAnd5m(
   symbol: string,
   h4Candles: Candle[],
-  fiveMinCandles: Candle[]
+  fiveMinCandles: Candle[],
+  fifteenMinCandles?: Candle[]
 ): ScanResult {
   const h4Box = calculateH4Box(h4Candles);
 
@@ -501,41 +504,60 @@ export function scanH4BoxAnd5m(
       h4Box,
       h4Candles,
       fiveMinCandles,
+      fifteenMinCandles,
       latest5mAnalysis: null,
       latest5mAnalysisBox2: null,
       latest5mAnalysisBox3: null,
+      latest15mAnalysisBox2: null,
+      latest15mAnalysisBox3: null,
       activeSignal: null,
       signalBox2: null,
       signalBox3: null,
+      signal15mBox2: null,
+      signal15mBox3: null,
       trend: 'sideways',
       scannedAt: Date.now(),
     };
   }
 
-  // Scan specifically for Box Lilin #2 (Chart 2)
-  const resBox2 = scanSpecificBox(symbol, h4Box.box2, h4Box, fiveMinCandles, 2);
+  // Scan specifically for 5M Box Lilin #2 (Chart 2)
+  const resBox2 = scanSpecificBox(symbol, h4Box.box2, h4Box, fiveMinCandles, 2, '5m');
 
-  // Scan specifically for Box Lilin #3 (Chart 3)
-  const resBox3 = scanSpecificBox(symbol, h4Box.box3, h4Box, fiveMinCandles, 3);
+  // Scan specifically for 5M Box Lilin #3 (Chart 3)
+  const resBox3 = scanSpecificBox(symbol, h4Box.box3, h4Box, fiveMinCandles, 3, '5m');
+
+  // Scan specifically for 15M Box Lilin #2 (Chart 4) and Box Lilin #3 (Chart 5) if 15m candles provided
+  let res15mBox2: { signal: TradingSignal | null; latestAnalysis: FiveMinCandleAnalysis | null } = { signal: null, latestAnalysis: null };
+  let res15mBox3: { signal: TradingSignal | null; latestAnalysis: FiveMinCandleAnalysis | null } = { signal: null, latestAnalysis: null };
+
+  if (fifteenMinCandles && fifteenMinCandles.length > 0) {
+    res15mBox2 = scanSpecificBox(symbol, h4Box.box2, h4Box, fifteenMinCandles, 2, '15m');
+    res15mBox3 = scanSpecificBox(symbol, h4Box.box3, h4Box, fifteenMinCandles, 3, '15m');
+  }
 
   // Determine overall trend from H4 Box & recent closes
   const lastH4 = h4Candles[h4Candles.length - 1];
   const trend: 'bullish' | 'bearish' | 'sideways' =
     lastH4.close > h4Box.box2.top ? 'bullish' : lastH4.close < h4Box.box2.bottom ? 'bearish' : 'sideways';
 
-  const activeSignal = resBox2.signal || resBox3.signal || null;
+  const activeSignal = resBox2.signal || resBox3.signal || res15mBox2.signal || res15mBox3.signal || null;
 
   return {
     symbol,
     h4Box,
     h4Candles,
     fiveMinCandles,
+    fifteenMinCandles,
     latest5mAnalysis: resBox2.latestAnalysis || resBox3.latestAnalysis,
     latest5mAnalysisBox2: resBox2.latestAnalysis,
     latest5mAnalysisBox3: resBox3.latestAnalysis,
+    latest15mAnalysisBox2: res15mBox2.latestAnalysis,
+    latest15mAnalysisBox3: res15mBox3.latestAnalysis,
     activeSignal,
     signalBox2: resBox2.signal,
     signalBox3: resBox3.signal,
+    signal15mBox2: res15mBox2.signal,
+    signal15mBox3: res15mBox3.signal,
     trend,
     scannedAt: Date.now(),
   };
@@ -545,10 +567,11 @@ export function scanH4BoxAnd5m(
  * Generate realistic synthetic candles for H4 and 5M for testing & simulation
  * Supports 2-Candle Strong Confirmation (Lilin Konfirmasi #1 & #2)
  */
-export function generateMockPair(type: 'buy_retest' | 'sell_retest' | 'neutral', countH4 = 40, count5m = 60): { h4: Candle[]; fiveM: Candle[] } {
+export function generateMockPair(type: 'buy_retest' | 'sell_retest' | 'neutral', countH4 = 40, count5m = 60, count15m = 60): { h4: Candle[]; fiveM: Candle[]; fifteenM: Candle[] } {
   const now = Date.now();
   const h4Interval = 4 * 60 * 60 * 1000;
   const m5Interval = 5 * 60 * 1000;
+  const m15Interval = 15 * 60 * 1000;
 
   const basePrice = 67500;
   const h4Candles: Candle[] = [];
@@ -752,5 +775,121 @@ export function generateMockPair(type: 'buy_retest' | 'sell_retest' | 'neutral',
     p5m = close;
   }
 
-  return { h4: h4Candles, fiveM: fiveMCandles };
+  // Generate 15M Candles
+  const fifteenMCandles: Candle[] = [];
+  const start15m = now - count15m * m15Interval;
+  let p15m = type === 'buy_retest' ? (h4Box ? h4Box.bottom - 60 : basePrice - 90) : (h4Box ? h4Box.top + 60 : basePrice + 90);
+
+  for (let i = 0; i < count15m; i++) {
+    const t = start15m + i * m15Interval;
+    const isBreakout1 = i === count15m - 3;
+    const isReentryC1 = i === count15m - 2;
+    const isReentryC2 = i === count15m - 1;
+
+    if (h4Box && type === 'buy_retest') {
+      if (isBreakout1) {
+        const open = h4Box.bottom + 5;
+        const close = h4Box.bottom - 55;
+        fifteenMCandles.push({
+          time: t,
+          timeString: new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          open: parseFloat(open.toFixed(2)),
+          high: parseFloat((open + 10).toFixed(2)),
+          low: parseFloat((close - 20).toFixed(2)),
+          close: parseFloat(close.toFixed(2)),
+          volume: 680,
+        });
+        continue;
+      }
+      if (isReentryC1) {
+        const open = h4Box.bottom - 45;
+        const close = h4Box.bottom + 25;
+        fifteenMCandles.push({
+          time: t,
+          timeString: new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          open: parseFloat(open.toFixed(2)),
+          high: parseFloat((close + 12).toFixed(2)),
+          low: parseFloat((open - 8).toFixed(2)),
+          close: parseFloat(close.toFixed(2)),
+          volume: 920,
+        });
+        continue;
+      }
+      if (isReentryC2) {
+        const open = h4Box.bottom + 25;
+        const close = h4Box.bottom + 110;
+        fifteenMCandles.push({
+          time: t,
+          timeString: new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          open: parseFloat(open.toFixed(2)),
+          high: parseFloat((close + 15).toFixed(2)),
+          low: parseFloat((open - 5).toFixed(2)),
+          close: parseFloat(close.toFixed(2)),
+          volume: 1100,
+        });
+        continue;
+      }
+    } else if (h4Box && type === 'sell_retest') {
+      if (isBreakout1) {
+        const open = h4Box.top - 5;
+        const close = h4Box.top + 55;
+        fifteenMCandles.push({
+          time: t,
+          timeString: new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          open: parseFloat(open.toFixed(2)),
+          high: parseFloat((close + 20).toFixed(2)),
+          low: parseFloat((open - 10).toFixed(2)),
+          close: parseFloat(close.toFixed(2)),
+          volume: 690,
+        });
+        continue;
+      }
+      if (isReentryC1) {
+        const open = h4Box.top + 45;
+        const close = h4Box.top - 25;
+        fifteenMCandles.push({
+          time: t,
+          timeString: new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          open: parseFloat(open.toFixed(2)),
+          high: parseFloat((open + 8).toFixed(2)),
+          low: parseFloat((close - 12).toFixed(2)),
+          close: parseFloat(close.toFixed(2)),
+          volume: 930,
+        });
+        continue;
+      }
+      if (isReentryC2) {
+        const open = h4Box.top - 25;
+        const close = h4Box.top - 110;
+        fifteenMCandles.push({
+          time: t,
+          timeString: new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          open: parseFloat(open.toFixed(2)),
+          high: parseFloat((open + 5).toFixed(2)),
+          low: parseFloat((close - 15).toFixed(2)),
+          close: parseFloat(close.toFixed(2)),
+          volume: 1120,
+        });
+        continue;
+      }
+    }
+
+    const open = p15m;
+    const close = open + (Math.random() - 0.49) * 60;
+    const high = Math.max(open, close) + Math.random() * 30;
+    const low = Math.min(open, close) - Math.random() * 30;
+
+    fifteenMCandles.push({
+      time: t,
+      timeString: new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      open: parseFloat(open.toFixed(2)),
+      high: parseFloat(high.toFixed(2)),
+      low: parseFloat(low.toFixed(2)),
+      close: parseFloat(close.toFixed(2)),
+      volume: Math.floor(Math.random() * 300) + 80,
+    });
+    p15m = close;
+  }
+
+  return { h4: h4Candles, fiveM: fiveMCandles, fifteenM: fifteenMCandles };
 }

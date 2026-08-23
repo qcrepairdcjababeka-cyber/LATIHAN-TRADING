@@ -79,22 +79,24 @@ export default function App() {
       const t = targetTokens[i];
       setScanProgress({ current: i + 1, total: targetTokens.length });
       try {
-        const [resH4, res5m] = await Promise.all([
+        const [resH4, res5m, res15m] = await Promise.all([
           fetch(`/api/binance/candles?symbol=${t.symbol}&interval=4h&limit=30`),
           fetch(`/api/binance/candles?symbol=${t.symbol}&interval=5m&limit=50`),
+          fetch(`/api/binance/candles?symbol=${t.symbol}&interval=15m&limit=50`),
         ]);
         const dH4 = await resH4.json();
         const d5m = await res5m.json();
+        const d15m = await res15m.json();
 
         if (dH4.success && d5m.success && dH4.candles?.length > 0) {
-          const res = scanH4BoxAnd5m(t.symbol, dH4.candles, d5m.candles);
+          const res = scanH4BoxAnd5m(t.symbol, dH4.candles, d5m.candles, d15m.success && d15m.candles?.length > 0 ? d15m.candles : undefined);
           results.push(res);
         } else {
           throw new Error('API fallback');
         }
       } catch {
-        const mock = generateMockPair(t.symbol.includes('BTC') || t.symbol.includes('NEIRO') ? 'buy_retest' : 'neutral', 30, 50);
-        const res = scanH4BoxAnd5m(t.symbol, mock.h4, mock.fiveM);
+        const mock = generateMockPair(t.symbol.includes('BTC') || t.symbol.includes('NEIRO') ? 'buy_retest' : 'neutral', 30, 50, 50);
+        const res = scanH4BoxAnd5m(t.symbol, mock.h4, mock.fiveM, mock.fifteenM);
         results.push(res);
       }
     }

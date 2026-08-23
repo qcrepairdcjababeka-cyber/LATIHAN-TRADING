@@ -52,7 +52,11 @@ export default function H4BoxChart({
       return;
     }
 
-    const intervalMs = timeframe === '4h' ? 4 * 60 * 60 * 1000 : 5 * 60 * 1000;
+    const intervalMs = timeframe === '4h' 
+      ? 4 * 60 * 60 * 1000 
+      : timeframe === '15m' 
+        ? 15 * 60 * 1000 
+        : 5 * 60 * 1000;
 
     const updateCountdown = () => {
       const lastCandle = candles[candles.length - 1];
@@ -217,15 +221,23 @@ export default function H4BoxChart({
             <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
               timeframe === '4h'
                 ? 'bg-indigo-600 text-white'
-                : isBox3Focused
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-emerald-600 text-white'
+                : timeframe === '15m'
+                  ? isBox3Focused
+                    ? 'bg-fuchsia-600 text-white shadow-sm'
+                    : 'bg-cyan-600 text-white shadow-sm'
+                  : isBox3Focused
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'bg-emerald-600 text-white shadow-sm'
             }`}>
               {timeframe === '4h'
                 ? 'TF: 4H (Box Lilin #2 & #3)'
-                : isBox3Focused
-                  ? 'TF: 5M (Target Box #3)'
-                  : 'TF: 5M (Target Box #2)'}
+                : timeframe === '15m'
+                  ? isBox3Focused
+                    ? 'TF: 15M (Target Box #3)'
+                    : 'TF: 15M (Target Box #2)'
+                  : isBox3Focused
+                    ? 'TF: 5M (Target Box #3)'
+                    : 'TF: 5M (Target Box #2)'}
             </span>
           </div>
 
@@ -771,7 +783,7 @@ export default function H4BoxChart({
               ⚡ Sinyal Terkonfirmasi ({activeSignal.type} @ ${activeSignal.entryPrice.toFixed(1)}) - {activeSignal.targetBoxName}
             </span>
           ) : (
-            <span>Memantau candle 5M kuat (body ≥50%) di Box H4 Lilin #2...</span>
+            <span>Memantau candle {timeframe.toUpperCase()} kuat (body ≥50%) di {isBox3Focused ? 'Box H4 Lilin #3' : 'Box H4 Lilin #2'}...</span>
           )}
         </div>
       </div>

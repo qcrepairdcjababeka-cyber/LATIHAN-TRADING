@@ -93,12 +93,17 @@ export interface ScanResult {
   h4Box: H4Box | null;
   h4Candles: Candle[];
   fiveMinCandles: Candle[];
+  fifteenMinCandles?: Candle[];
   latest5mAnalysis: FiveMinCandleAnalysis | null;
   latest5mAnalysisBox2?: FiveMinCandleAnalysis | null;
   latest5mAnalysisBox3?: FiveMinCandleAnalysis | null;
+  latest15mAnalysisBox2?: FiveMinCandleAnalysis | null;
+  latest15mAnalysisBox3?: FiveMinCandleAnalysis | null;
   activeSignal: TradingSignal | null;
   signalBox2?: TradingSignal | null;
   signalBox3?: TradingSignal | null;
+  signal15mBox2?: TradingSignal | null;
+  signal15mBox3?: TradingSignal | null;
   trend: 'bullish' | 'bearish' | 'sideways';
   scannedAt: number;
 }

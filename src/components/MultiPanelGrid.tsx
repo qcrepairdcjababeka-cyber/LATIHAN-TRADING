@@ -41,6 +41,7 @@ export default function MultiPanelGrid({
   const [symbol, setSymbol] = useState<string>(currentSymbol || 'BTCUSDT');
   const [h4Candles, setH4Candles] = useState<Candle[]>([]);
   const [fiveMCandles, setFiveMCandles] = useState<Candle[]>([]);
+  const [fifteenMCandles, setFifteenMCandles] = useState<Candle[]>([]);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
@@ -52,41 +53,46 @@ export default function MultiPanelGrid({
     }
   }, [currentSymbol]);
 
-  // Fetch 4H & 5M data simultaneously
-  const fetchDualData = async (targetSym: string, silent = false) => {
+  // Fetch 4H, 5M, & 15M data simultaneously
+  const fetchMultiData = async (targetSym: string, silent = false) => {
     if (!silent) setLoading(true);
 
     try {
-      const [resH4, res5m] = await Promise.all([
+      const [resH4, res5m, res15m] = await Promise.all([
         fetch(`/api/binance/candles?symbol=${targetSym}&interval=4h&limit=60`),
         fetch(`/api/binance/candles?symbol=${targetSym}&interval=5m&limit=90`),
+        fetch(`/api/binance/candles?symbol=${targetSym}&interval=15m&limit=90`),
       ]);
 
       const dataH4 = await resH4.json();
       const data5m = await res5m.json();
+      const data15m = await res15m.json();
 
       let h4List = dataH4.success && dataH4.candles?.length > 0 ? dataH4.candles : null;
       let fiveMList = data5m.success && data5m.candles?.length > 0 ? data5m.candles : null;
+      let fifteenMList = data15m.success && data15m.candles?.length > 0 ? data15m.candles : null;
 
-      if (!h4List || !fiveMList) {
+      if (!h4List || !fiveMList || !fifteenMList) {
         throw new Error('API fallback');
       }
 
       setH4Candles(h4List);
       setFiveMCandles(fiveMList);
+      setFifteenMCandles(fifteenMList);
 
-      const result = scanH4BoxAnd5m(targetSym, h4List, fiveMList);
+      const result = scanH4BoxAnd5m(targetSym, h4List, fiveMList, fifteenMList);
       setScanResult(result);
       if (onActiveSignalFound) onActiveSignalFound(result.activeSignal);
       setLoading(false);
       setLastUpdated(new Date());
     } catch {
       // Fallback generator
-      const mock = generateMockPair(targetSym.includes('BTC') ? 'buy_retest' : 'sell_retest', 40, 60);
+      const mock = generateMockPair(targetSym.includes('BTC') ? 'buy_retest' : 'sell_retest', 40, 60, 60);
       setH4Candles(mock.h4);
       setFiveMCandles(mock.fiveM);
+      setFifteenMCandles(mock.fifteenM);
 
-      const result = scanH4BoxAnd5m(targetSym, mock.h4, mock.fiveM);
+      const result = scanH4BoxAnd5m(targetSym, mock.h4, mock.fiveM, mock.fifteenM);
       setScanResult(result);
       if (onActiveSignalFound) onActiveSignalFound(result.activeSignal);
       setLoading(false);
@@ -95,13 +101,13 @@ export default function MultiPanelGrid({
   };
 
   useEffect(() => {
-    fetchDualData(symbol, false);
+    fetchMultiData(symbol, false);
   }, [symbol]);
 
   // Live polling every 10 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchDualData(symbol, true);
+      fetchMultiData(symbol, true);
     }, 10000);
     return () => clearInterval(interval);
   }, [symbol]);
@@ -145,7 +151,7 @@ export default function MultiPanelGrid({
           )}
 
           <button
-            onClick={() => fetchDualData(symbol, false)}
+            onClick={() => fetchMultiData(symbol, false)}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-lg transition flex items-center gap-2 shadow-md cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -154,8 +160,9 @@ export default function MultiPanelGrid({
         </div>
       </div>
 
-      {/* 2. REAL-TIME SIGNAL BANNERS (Box #2 and Box #3) */}
+      {/* 2. REAL-TIME SIGNAL BANNERS (5M & 15M Box #2 and Box #3) */}
       <div className="space-y-3">
+        {/* Signal 5M Box #2 */}
         {scanResult?.signalBox2 && (
           <div className={`p-4 rounded-xl border shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-in ${
             scanResult.signalBox2.type === 'BUY'
@@ -176,8 +183,8 @@ export default function MultiPanelGrid({
                       : scanResult.signalBox2.type === 'BUY' ? 'bg-emerald-500 text-slate-950' : 'bg-rose-500 text-white'
                   }`}>
                     {scanResult.signalBox2.isFlipped
-                      ? `⚡ FLIP ${scanResult.signalBox2.type} (CANCEL ${scanResult.signalBox2.flippedFrom})`
-                      : `SINYAL ${scanResult.signalBox2.type} AKTIF (BOX #2)`}
+                      ? `⚡ FLIP ${scanResult.signalBox2.type} (TF 5M - CANCEL ${scanResult.signalBox2.flippedFrom})`
+                      : `SINYAL ${scanResult.signalBox2.type} AKTIF (TF 5M • BOX #2)`}
                   </span>
                   <span className="text-xs font-extrabold text-indigo-300">
                     {symbol} &bull; Acuan H4 Lilin #2
@@ -222,6 +229,7 @@ export default function MultiPanelGrid({
           </div>
         )}
 
+        {/* Signal 5M Box #3 */}
         {scanResult?.signalBox3 && (
           <div className={`p-4 rounded-xl border shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-in ${
             scanResult.signalBox3.type === 'BUY'
@@ -242,8 +250,8 @@ export default function MultiPanelGrid({
                       : scanResult.signalBox3.type === 'BUY' ? 'bg-purple-400 text-slate-950' : 'bg-rose-500 text-white'
                   }`}>
                     {scanResult.signalBox3.isFlipped
-                      ? `⚡ FLIP ${scanResult.signalBox3.type} (CANCEL ${scanResult.signalBox3.flippedFrom})`
-                      : `SINYAL ${scanResult.signalBox3.type} AKTIF (BOX #3)`}
+                      ? `⚡ FLIP ${scanResult.signalBox3.type} (TF 5M - CANCEL ${scanResult.signalBox3.flippedFrom})`
+                      : `SINYAL ${scanResult.signalBox3.type} AKTIF (TF 5M • BOX #3)`}
                   </span>
                   <span className="text-xs font-extrabold text-purple-300">
                     {symbol} &bull; Acuan H4 Lilin #3
@@ -287,17 +295,151 @@ export default function MultiPanelGrid({
             </div>
           </div>
         )}
+
+        {/* Signal 15M Box #2 */}
+        {scanResult?.signal15mBox2 && (
+          <div className={`p-4 rounded-xl border shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-in ${
+            scanResult.signal15mBox2.type === 'BUY'
+              ? 'bg-emerald-950/40 border-emerald-500/60 shadow-emerald-950/30'
+              : 'bg-rose-950/40 border-rose-500/60 shadow-rose-950/30'
+          }`}>
+            <div className="flex items-start gap-3.5">
+              <div className={`p-2.5 rounded-xl text-white ${
+                scanResult.signal15mBox2.type === 'BUY' ? 'bg-cyan-600' : 'bg-rose-600'
+              }`}>
+                {scanResult.signal15mBox2.type === 'BUY' ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`px-2.5 py-0.5 rounded text-xs font-black uppercase ${
+                    scanResult.signal15mBox2.isFlipped
+                      ? 'bg-amber-400 text-slate-950 font-black animate-pulse'
+                      : scanResult.signal15mBox2.type === 'BUY' ? 'bg-cyan-400 text-slate-950' : 'bg-rose-500 text-white'
+                  }`}>
+                    {scanResult.signal15mBox2.isFlipped
+                      ? `⚡ FLIP ${scanResult.signal15mBox2.type} (TF 15M - CANCEL ${scanResult.signal15mBox2.flippedFrom})`
+                      : `SINYAL ${scanResult.signal15mBox2.type} AKTIF (TF 15M • BOX #2)`}
+                  </span>
+                  <span className="text-xs font-extrabold text-cyan-300">
+                    {symbol} &bull; Acuan H4 Lilin #2 (TF 15M)
+                  </span>
+                  {scanResult.signal15mBox2.isFlipped && (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/40">
+                      ⚠️ Memory: {scanResult.signal15mBox2.invalidationReason}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-300 mt-1">
+                  {scanResult.signal15mBox2.explanation}
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="flex flex-wrap items-center gap-3 bg-slate-950/70 p-3 rounded-lg border border-slate-800 text-xs font-mono">
+              <div>
+                <span className="text-slate-500 block text-[10px]">ENTRY:</span>
+                <strong className="text-sky-400">${scanResult.signal15mBox2.entryPrice.toFixed(2)}</strong>
+              </div>
+              <div className="border-l border-slate-800 pl-3">
+                <span className="text-slate-500 block text-[10px]">STOP LOSS:</span>
+                <strong className="text-rose-400">${scanResult.signal15mBox2.stopLoss.toFixed(2)}</strong>
+              </div>
+              <div className="border-l border-slate-800 pl-3">
+                <span className="text-slate-500 block text-[10px]">TP 1 (GARIS TENGAH):</span>
+                <strong className="text-emerald-400 font-bold">${scanResult.signal15mBox2.takeProfit1.toFixed(2)}</strong>
+              </div>
+              <div className="border-l border-slate-800 pl-3">
+                <span className="text-slate-500 block text-[10px]">TP 2 ({scanResult.signal15mBox2.type === 'BUY' ? 'BATAS ATAS' : 'BATAS BAWAH'}):</span>
+                <strong className="text-teal-300 font-bold">${scanResult.signal15mBox2.takeProfit2.toFixed(2)}</strong>
+              </div>
+              <div className="border-l border-slate-800 pl-3">
+                <span className="text-slate-500 block text-[10px]">LILIN 15M MASUK BOX:</span>
+                <strong className="text-cyan-400">
+                  {scanResult.signal15mBox2.type} @ {scanResult.signal15mBox2.bodyRatioPercent}% Body
+                </strong>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Signal 15M Box #3 */}
+        {scanResult?.signal15mBox3 && (
+          <div className={`p-4 rounded-xl border shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-in ${
+            scanResult.signal15mBox3.type === 'BUY'
+              ? 'bg-fuchsia-950/40 border-fuchsia-500/60 shadow-fuchsia-950/30'
+              : 'bg-rose-950/40 border-rose-500/60 shadow-rose-950/30'
+          }`}>
+            <div className="flex items-start gap-3.5">
+              <div className={`p-2.5 rounded-xl text-white ${
+                scanResult.signal15mBox3.type === 'BUY' ? 'bg-fuchsia-600' : 'bg-rose-600'
+              }`}>
+                {scanResult.signal15mBox3.type === 'BUY' ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`px-2.5 py-0.5 rounded text-xs font-black uppercase ${
+                    scanResult.signal15mBox3.isFlipped
+                      ? 'bg-amber-400 text-slate-950 font-black animate-pulse'
+                      : scanResult.signal15mBox3.type === 'BUY' ? 'bg-fuchsia-400 text-slate-950' : 'bg-rose-500 text-white'
+                  }`}>
+                    {scanResult.signal15mBox3.isFlipped
+                      ? `⚡ FLIP ${scanResult.signal15mBox3.type} (TF 15M - CANCEL ${scanResult.signal15mBox3.flippedFrom})`
+                      : `SINYAL ${scanResult.signal15mBox3.type} AKTIF (TF 15M • BOX #3)`}
+                  </span>
+                  <span className="text-xs font-extrabold text-fuchsia-300">
+                    {symbol} &bull; Acuan H4 Lilin #3 (TF 15M)
+                  </span>
+                  {scanResult.signal15mBox3.isFlipped && (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/40">
+                      ⚠️ Memory: {scanResult.signal15mBox3.invalidationReason}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-300 mt-1">
+                  {scanResult.signal15mBox3.explanation}
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="flex flex-wrap items-center gap-3 bg-slate-950/70 p-3 rounded-lg border border-slate-800 text-xs font-mono">
+              <div>
+                <span className="text-slate-500 block text-[10px]">ENTRY:</span>
+                <strong className="text-sky-400">${scanResult.signal15mBox3.entryPrice.toFixed(2)}</strong>
+              </div>
+              <div className="border-l border-slate-800 pl-3">
+                <span className="text-slate-500 block text-[10px]">STOP LOSS:</span>
+                <strong className="text-rose-400">${scanResult.signal15mBox3.stopLoss.toFixed(2)}</strong>
+              </div>
+              <div className="border-l border-slate-800 pl-3">
+                <span className="text-slate-500 block text-[10px]">TP 1 (GARIS TENGAH):</span>
+                <strong className="text-emerald-400 font-bold">${scanResult.signal15mBox3.takeProfit1.toFixed(2)}</strong>
+              </div>
+              <div className="border-l border-slate-800 pl-3">
+                <span className="text-slate-500 block text-[10px]">TP 2 ({scanResult.signal15mBox3.type === 'BUY' ? 'BATAS ATAS' : 'BATAS BAWAH'}):</span>
+                <strong className="text-teal-300 font-bold">${scanResult.signal15mBox3.takeProfit2.toFixed(2)}</strong>
+              </div>
+              <div className="border-l border-slate-800 pl-3">
+                <span className="text-slate-500 block text-[10px]">LILIN 15M MASUK BOX:</span>
+                <strong className="text-fuchsia-300">
+                  {scanResult.signal15mBox3.type} @ {scanResult.signal15mBox3.bodyRatioPercent}% Body
+                </strong>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 3. THREE SEPARATE CHARTS: CHART 1 (H4), CHART 2 (5M BOX 2), CHART 3 (5M BOX 3) */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      {/* 3. MULTI-CHART DISPLAY GRID: 4H ACUAN UTAMA, 5M BOX 2 & 3, 15M BOX 2 & 3 */}
+      <div className="space-y-6">
         {/* CHART 1: TIMEFRAME 4H (HIGHER TIMEFRAME CONTEXT & DUAL BOXES #2 & #3) */}
         <div className="flex flex-col space-y-2">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
               <h3 className="text-xs font-extrabold text-slate-200 uppercase tracking-wider">
-                Chart 1: Timeframe 4H (Area Box Lilin #2 & #3)
+                Chart 1: Timeframe 4H (Area Box Lilin #2 & #3 - Acuan Utama H4)
               </h3>
             </div>
             <span className="text-[11px] text-slate-400 font-mono">
@@ -315,54 +457,132 @@ export default function MultiPanelGrid({
           />
         </div>
 
-        {/* CHART 2: TIMEFRAME 5M (LILIN KE-2 H4 BOX CONFIRMATION) */}
-        <div className="flex flex-col space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              <h3 className="text-xs font-extrabold text-slate-200 uppercase tracking-wider">
-                Chart 2: Timeframe 5M (Konfirmasi Candle Kuat Masuk Box H4 Lilin #2)
-              </h3>
-            </div>
-            <span className="text-[11px] text-slate-400 font-mono">
-              {fiveMCandles.length} candles
+        {/* SECTION 5M: TIMEFRAME 5M (BOX #2 & BOX #3) */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+            <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-xs font-black border border-emerald-500/40">
+              TIMEFRAME 5M
+            </span>
+            <span className="text-xs text-slate-400 font-medium">
+              Konfirmasi Candle Masuk Box H4 (Lilin #2 & Lilin #3)
             </span>
           </div>
 
-          <H4BoxChart
-            candles={fiveMCandles}
-            h4Box={h4Box}
-            focusBox={2}
-            activeSignal={scanResult?.signalBox2 || null}
-            latest5mAnalysis={scanResult?.latest5mAnalysisBox2}
-            timeframe="5m"
-            symbol={symbol}
-          />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* CHART 2: TIMEFRAME 5M (LILIN KE-2 H4 BOX CONFIRMATION) */}
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                  <h3 className="text-xs font-extrabold text-slate-200 uppercase tracking-wider">
+                    Chart 2: Timeframe 5M (Konfirmasi Box H4 Lilin #2)
+                  </h3>
+                </div>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  {fiveMCandles.length} candles
+                </span>
+              </div>
+
+              <H4BoxChart
+                candles={fiveMCandles}
+                h4Box={h4Box}
+                focusBox={2}
+                activeSignal={scanResult?.signalBox2 || null}
+                latest5mAnalysis={scanResult?.latest5mAnalysisBox2}
+                timeframe="5m"
+                symbol={symbol}
+              />
+            </div>
+
+            {/* CHART 3: TIMEFRAME 5M (LILIN KE-3 H4 BOX CONFIRMATION) */}
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+                  <h3 className="text-xs font-extrabold text-slate-200 uppercase tracking-wider">
+                    Chart 3: Timeframe 5M (Konfirmasi Box H4 Lilin #3)
+                  </h3>
+                </div>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  {fiveMCandles.length} candles
+                </span>
+              </div>
+
+              <H4BoxChart
+                candles={fiveMCandles}
+                h4Box={h4Box}
+                focusBox={3}
+                activeSignal={scanResult?.signalBox3 || null}
+                latest5mAnalysis={scanResult?.latest5mAnalysisBox3}
+                timeframe="5m"
+                symbol={symbol}
+              />
+            </div>
+          </div>
         </div>
 
-        {/* CHART 3: TIMEFRAME 5M (LILIN KE-3 H4 BOX CONFIRMATION) - DIPISAH DARI CHART 2 */}
-        <div className="flex flex-col space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
-              <h3 className="text-xs font-extrabold text-slate-200 uppercase tracking-wider">
-                Chart 3: Timeframe 5M (Konfirmasi Candle Kuat Masuk Box H4 Lilin #3)
-              </h3>
-            </div>
-            <span className="text-[11px] text-slate-400 font-mono">
-              {fiveMCandles.length} candles
+        {/* SECTION 15M: TIMEFRAME 15M (BOX #2 & BOX #3) */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+            <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-xs font-black border border-cyan-500/40">
+              TIMEFRAME 15M
+            </span>
+            <span className="text-xs text-slate-400 font-medium">
+              Konfirmasi Candle Masuk Box H4 (Lilin #2 & Lilin #3)
             </span>
           </div>
 
-          <H4BoxChart
-            candles={fiveMCandles}
-            h4Box={h4Box}
-            focusBox={3}
-            activeSignal={scanResult?.signalBox3 || null}
-            latest5mAnalysis={scanResult?.latest5mAnalysisBox3}
-            timeframe="5m"
-            symbol={symbol}
-          />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* CHART 4: TIMEFRAME 15M (LILIN KE-2 H4 BOX CONFIRMATION) */}
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-500"></span>
+                  <h3 className="text-xs font-extrabold text-slate-200 uppercase tracking-wider">
+                    Chart 4: Timeframe 15M (Konfirmasi Box H4 Lilin #2)
+                  </h3>
+                </div>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  {fifteenMCandles.length} candles
+                </span>
+              </div>
+
+              <H4BoxChart
+                candles={fifteenMCandles}
+                h4Box={h4Box}
+                focusBox={2}
+                activeSignal={scanResult?.signal15mBox2 || null}
+                latest5mAnalysis={scanResult?.latest15mAnalysisBox2}
+                timeframe="15m"
+                symbol={symbol}
+              />
+            </div>
+
+            {/* CHART 5: TIMEFRAME 15M (LILIN KE-3 H4 BOX CONFIRMATION) */}
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-fuchsia-500"></span>
+                  <h3 className="text-xs font-extrabold text-slate-200 uppercase tracking-wider">
+                    Chart 5: Timeframe 15M (Konfirmasi Box H4 Lilin #3)
+                  </h3>
+                </div>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  {fifteenMCandles.length} candles
+                </span>
+              </div>
+
+              <H4BoxChart
+                candles={fifteenMCandles}
+                h4Box={h4Box}
+                focusBox={3}
+                activeSignal={scanResult?.signal15mBox3 || null}
+                latest5mAnalysis={scanResult?.latest15mAnalysisBox3}
+                timeframe="15m"
+                symbol={symbol}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -372,12 +592,12 @@ export default function MultiPanelGrid({
           <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
           <div>
             <strong className="text-slate-200 block text-xs">Aturan Validasi Candle Kuat (Bukan Wick):</strong>
-            <span>Sinyal BUY/SELL hanya valid jika badan candle 5M mendominasi &ge; 50% dari total candle saat breakout keluar lalu masuk kembali (re-entry) ke Box H4 (Lilin #2 atau Lilin #3).</span>
+            <span>Sinyal BUY/SELL hanya valid jika chart benar-benar keluar box terlebih dahulu lalu masuk kembali, dan badan candle (5M atau 15M) mendominasi &ge; 50% saat re-entry ke Box H4 (Lilin #2 atau Lilin #3).</span>
           </div>
         </div>
 
         <div className="flex items-center gap-2 text-indigo-300 font-bold shrink-0">
-          <span>Sinkronisasi Real-Time 3 Chart (4H, 5M Box #2, 5M Box #3)</span>
+          <span>Sinkronisasi Real-Time 5 Chart (4H, 5M Box #2/#3, 15M Box #2/#3)</span>
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
         </div>
       </div>
