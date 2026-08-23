@@ -1,6 +1,6 @@
 {
-  "name": "ICT Institutional Signal Scanner",
-  "description": "Algorithmic scanner and AI-powered copilot for identifying Fair Value Gaps (FVG), Inversion FVGs (IFVG), Order Blocks, and Market Structure Shifts (MSS) to detect institutional ICT trading setups.",
+  "name": "H4 Box & 5M Breakout Re-entry Scanner",
+  "description": "Algorithmic multi-chart scanner for detecting real-time H4 Box (Candle #2 & #3) key zones across Gold (XAUUSD), Top 10, Top 100 to 500 Cryptos, and Binance Alpha tokens, generating BUY/SELL signals on 3 synchronized charts when 5M candles breakout and re-enter with strong body confirmation.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -81,10 +81,14 @@ async function startServer() {
     const cleanInterval = normalizeInterval(req.query.interval);
     const cleanLimit = normalizeLimit(req.query.limit);
 
+    // Map XAUUSD to PAXGUSDT (Gold on Binance) or query both
+    const isGold = cleanSymbol === 'XAUUSD' || cleanSymbol === 'XAUUSDT' || cleanSymbol === 'PAXGUSDT';
+    const querySymbol = isGold ? 'PAXGUSDT' : cleanSymbol;
+
     const urls = [
-      `https://fapi.binance.com/fapi/v1/klines?symbol=${cleanSymbol}&interval=${cleanInterval}&limit=${cleanLimit}`,
-      `https://api.binance.com/api/v3/klines?symbol=${cleanSymbol}&interval=${cleanInterval}&limit=${cleanLimit}`,
-      `https://data-api.binance.vision/api/v3/klines?symbol=${cleanSymbol}&interval=${cleanInterval}&limit=${cleanLimit}`,
+      `https://api.binance.com/api/v3/klines?symbol=${querySymbol}&interval=${cleanInterval}&limit=${cleanLimit}`,
+      `https://fapi.binance.com/fapi/v1/klines?symbol=${querySymbol}&interval=${cleanInterval}&limit=${cleanLimit}`,
+      `https://data-api.binance.vision/api/v3/klines?symbol=${querySymbol}&interval=${cleanInterval}&limit=${cleanLimit}`,
     ];
 
     let rawData: any[] | null = null;
@@ -145,7 +149,8 @@ async function startServer() {
     else if (cleanInterval === '1d') intervalMs = 24 * 60 * 60 * 1000;
 
     let basePrice = 64000;
-    if (cleanSymbol.includes('ETH')) basePrice = 3400;
+    if (cleanSymbol.includes('XAU') || cleanSymbol.includes('PAXG') || isGold) basePrice = 2950;
+    else if (cleanSymbol.includes('ETH')) basePrice = 3400;
     else if (cleanSymbol.includes('SOL')) basePrice = 145;
     else if (cleanSymbol.includes('BNB')) basePrice = 580;
     else if (cleanSymbol.includes('XRP')) basePrice = 0.58;
@@ -193,48 +198,44 @@ async function startServer() {
       return res.json({
         success: true,
         isMock: true,
-        analysis: `**[Koneksi AI Terbatas]** Kunci API Gemini tidak terdeteksi di server. Berikut adalah rekomendasi rule-based berdasarkan pola pasar:\n\n1. **Arah Tren**: Aliran pesanan menunjukkan bias dominan yang selaras dengan momentum saat ini.\n2. **Inversion FVG (IFG)**: Jika terdeteksi gap terbalik, amati penutupan harga pada badan candle berikutnya. Penembusan area gap adalah sinyal perpindahan kekuatan pasar.\n3. **Manajemen Risiko**: Selalu letakkan Stop Loss di bawah swing low terdekat untuk posisi Buy, dan di atas swing high terdekat untuk posisi Sell.`
+        analysis: `**[Koneksi AI Terbatas]** Kunci API Gemini tidak terdeteksi di server. Berikut adalah rekomendasi rule-based berdasarkan strategi Box H4 (Lilin Ke-2) + Breakout & Re-entry 5M Candle Kuat:\n\n1. **Area Box H4**: Lilin ke-2 pada chart 4 Jam menjadi batas kritis (Key Zone).\n2. **Logika Breakout & Re-entry 5M**: Tunggu candle 5 Menit sempat breakout keluar dari kotak H4 (ke bawah untuk Buy, ke atas untuk Sell), lalu masuk kembali ke dalam kotak H4 dengan badan candle tebal (>= 50%, bukan wick tipis).\n3. **Manajemen Risiko**: Pasang Stop Loss di luar swing level breakout dengan rasio Risk-to-Reward minimal 1:2.`
       });
     }
 
     try {
-      const { symbol, timeframe, trend, fvgsCount, ifvgsCount, obsCount, structures, activeSignal } = req.body;
+      const { symbol, h4Box, activeSignal, latest5mAnalysis, trend } = req.body;
 
       const prompt = `
-Anda adalah AI Institutional Analyst & ICT (Inner Circle Trader) Copilot profesional. Tugas Anda adalah melakukan analisis struktur pasar institutional tingkat tinggi (SMC/ICT) berdasarkan data teknikal yang dikirimkan oleh scanner algoritma kami.
+Anda adalah AI Quantitative Analyst & Professional Trader Copilot. Tugas Anda adalah menganalisis peluang pasar berdasarkan metode strategi:
+**"Area Box Lilin H4 (Lilin Ke-2 dan Lilin Ke-3) pada Timeframe H4 + Logika Breakout Keluar Kotak H4 lalu Masuk Kembali dengan Lilin 5 Menit KUAT (Bukan Wick), dengan Target Take Profit pada Close Badan Lilin H4 ke-2 atau ke-3"**.
 
-Berikut adalah data pasar saat ini:
+Berikut adalah data teknikal saat ini:
 - **Aset (Ticker)**: ${symbol}
-- **Timeframe**: ${timeframe}
-- **Tren Umum**: ${trend}
-- **Fair Value Gap (FVG) Terdeteksi**: ${fvgsCount}
-- **Inversion FVG (IFG / IFVG) Terdeteksi**: ${ifvgsCount}
-- **Order Block (OB) Terdeteksi**: ${obsCount}
+- **Tren H4**: ${trend || 'Netral'}
+- **Data Box H4 (Lilin #2 & #3)**:
+  ${JSON.stringify(h4Box || {}, null, 2)}
+- **Kondisi Lilin 5M Terkini**:
+  ${JSON.stringify(latest5mAnalysis || {}, null, 2)}
+- **Sinyal Aktif Algoritma**:
+  ${activeSignal ? JSON.stringify(activeSignal, null, 2) : "Sedang memantau siklus harga breakout keluar dan masuk kembali ke Box H4 Lilin #2 / Lilin #3."}
 
-**Pola Struktur Pasar Terkini**:
-${JSON.stringify(structures || [], null, 2)}
+Buatlah laporan analisis taktis yang mendalam dan mudah dipahami dalam **Bahasa Indonesia**.
 
-**Sinyal Algoritma yang Dihasilkan**:
-${activeSignal ? JSON.stringify(activeSignal, null, 2) : "Belum ada sinyal otomatis yang matang."}
-
-Buatlah laporan analisis institusional yang mendalam, terstruktur, dan taktis dalam **Bahasa Indonesia**. Laporan harus ditulis dengan nada profesional layaknya analis prop firm senior atau dana lindung nilai (hedge fund).
-
-Gunakan format markdown yang indah dengan bagian-bagian berikut:
-1. **📌 Ringkasan Bias Pasar (Market Bias)**: Menjelaskan bias bullish/bearish saat ini berdasarkan struktur pasar (MSS/BOS) dan liquidity pools (BSL/SSL).
-2. **🌀 Analisis Inversion FVG (IFG)**: Fokus utama! Jelaskan peranan Inversion FVG (IFG) yang terdeteksi. Bagaimana harga memperlakukan level yang terbalik ini (misal bearish gap yang tembus menjadi support kuat, atau sebaliknya).
-3. **💼 Order Block & Mitigasi Aliran Institusi**: Jelaskan posisi order block penting saat ini dan apakah harga sedang berada dalam fase mitigasi (retest) untuk entri berprobabilitas tinggi.
-4. **🎯 Rencana Eksekusi Institusional (Trading Setup)**:
-   - **Tipe Setup**: (misalnya *Retest Inversion FVG* atau *MSS + OB Mitigation*)
-   - **Trigger Entri**: Kisaran harga entri ideal
-   - **Invalidasi (Stop Loss)**: Level penutupan badan candle yang mengabaikan setup
-   - **Target Likuiditas (Take Profit)**: Sebutkan TP1, TP2, dan TP3 berdasarkan level swing high/low terdekat.
-5. **🛡️ Catatan Manajemen Risiko**: Aturan khusus dalam menyikapi setup ini, seperti news release, re-entri, dan kondisi pembatalan setup.
-
-Gunakan terminologi ICT standard seperti: *Fair Value Gap (FVG)*, *Inversion FVG (IFG)*, *Market Structure Shift (MSS)*, *Break of Structure (BOS)*, *Buy Side Liquidity (BSL)*, *Sell Side Liquidity (SSL)*, *Optimal Trade Entry (OTE)*, dan *Order Block (OB)*. Tetap jaga penjelasan agar sangat informatif bagi pengguna.
+Format laporan dengan Markdown terstruktur:
+1. **📦 Evaluasi Area Box H4 (Lilin #2 & #3)**:
+   - **Box Lilin #2 (H4-2)** & **Box Lilin #3 (H4-3)**: High-Low rentang harga serta level Close Badan Lilin H4.
+   - Jelaskan signifikansi box ini sebagai zona batas referensi utama.
+2. **⚡ Analisis Breakout & Re-entry Lilin 5 Menit**: Evaluasi apakah harga 5M sempat breakout keluar dari Box H4 (bawah / atas) lalu berhasil masuk kembali dengan "Candle Kuat" (badan tebal >= 50%) atau hanya "Wick Tipis" (harus diabaikan).
+3. **🎯 Rencana Eksekusi Trading**:
+   - **Arah Posisi**: (BUY / SELL / WAIT)
+   - **Harga Entri**: Kisaran harga ideal saat 5M re-entry
+   - **Level Stop Loss**: Di luar swing breakout Box H4
+   - **Target Take Profit Utama**: Tepat pada level **Close Badan Lilin H4** (Lilin #2 atau #3 sesuai acuan setup)
+4. **🛡️ Manajemen Risiko**: Catatan disiplin trading dan pengamanan modal.
 `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           temperature: 0.7,
