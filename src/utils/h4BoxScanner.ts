@@ -6,6 +6,28 @@
 import { Candle, H4Box, FiveMinCandleAnalysis, TradingSignal, ScanResult, SingleBox } from '../types';
 
 /**
+ * Robust Price Formatter for all crypto and commodity assets
+ * Formats tokens with appropriate decimal places (from Gold & BTC down to micro-cap meme tokens)
+ */
+export function formatPrice(price: number | undefined | null): string {
+  if (price === undefined || price === null || isNaN(price)) return '0.00';
+  const abs = Math.abs(price);
+  if (abs >= 1000) {
+    return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  if (abs >= 1) {
+    return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  }
+  if (abs >= 0.01) {
+    return price.toFixed(4);
+  }
+  if (abs >= 0.0001) {
+    return price.toFixed(6);
+  }
+  return price.toFixed(8);
+}
+
+/**
  * Calculates the H4 Key Boxes formed by Candle #2 and Candle #3 in real-time.
  * Candle 1 = current active/forming H4 candle (index: length - 1)
  * Candle 2 = previous closed H4 candle (index: length - 2) -> Box Lilin #2 (Chart 2)
@@ -65,6 +87,9 @@ export function calculateH4Box(h4Candles: Candle[]): H4Box | null {
 /**
  * Evaluates whether a 5-minute candle is a "Strong Candle" (body dominant >= 50%, not a wick)
  * and whether it has re-entered a target H4 Box after a recent breakout outside.
+ * 
+ * STRICT RULE: A breakout requires genuine candle bodies/closes outside the Box.
+ * Merely having a wick poke outside while the body stays inside does NOT count as a breakout.
  */
 export function analyze5mCandle(
   candle: Candle,
@@ -106,7 +131,8 @@ export function analyze5mCandle(
   const touchesBox = candle.low <= targetBox.top && candle.high >= targetBox.bottom;
   const closesInBox = candle.close >= targetBox.bottom && candle.close <= targetBox.top;
 
-  // Detect if recent candles (lookback up to 8 candles) broke out outside the target Box
+  // STRICT REQUIREMENT: Detect if recent candles (lookback up to 8 candles) genuinely broke out outside the target Box
+  // A wick alone does NOT count as a breakout. There must be candle closes or bodies outside the box!
   let brokeOutBelow = false;
   let brokeOutAbove = false;
 
@@ -114,16 +140,18 @@ export function analyze5mCandle(
     const lookbackStart = Math.max(0, index - 8);
     const lookbackCandles = all5mCandles.slice(lookbackStart, index);
     for (const prev of lookbackCandles) {
-      if (prev.low < targetBox.bottom || prev.close < targetBox.bottom) {
+      // Must have closed below or had body outside below the box
+      if (prev.close < targetBox.bottom || (prev.open < targetBox.bottom && prev.close <= targetBox.bottom)) {
         brokeOutBelow = true;
       }
-      if (prev.high > targetBox.top || prev.close > targetBox.top) {
+      // Must have closed above or had body outside above the box
+      if (prev.close > targetBox.top || (prev.open > targetBox.top && prev.close >= targetBox.top)) {
         brokeOutAbove = true;
       }
     }
   } else {
-    if (candle.low < targetBox.bottom || candle.open < targetBox.bottom) brokeOutBelow = true;
-    if (candle.high > targetBox.top || candle.open > targetBox.top) brokeOutAbove = true;
+    if (candle.open < targetBox.bottom && candle.close <= targetBox.bottom) brokeOutBelow = true;
+    if (candle.open > targetBox.top && candle.close >= targetBox.top) brokeOutAbove = true;
   }
 
   let isBreakoutReentry = false;
@@ -195,45 +223,49 @@ function scanSpecificBox(
       latestAnalysis = analysis2;
     }
 
-    const lookbackStart = Math.max(0, globalIdx1 - 8);
+    const lookbackStart = Math.max(0, globalIdx1 - 10);
     const priorCandles = fiveMinCandles.slice(lookbackStart, globalIdx1);
 
-    const hadBreakoutBelow = 
-      priorCandles.some(p => p.low < box.bottom || p.close < box.bottom) || 
-      c1.open < box.bottom || 
-      c1.low < box.bottom || 
-      c2.open < box.bottom || 
-      c2.low < box.bottom;
+    // STRICT BREAKOUT REQUIREMENT (Bukan Cuma Wick):
+    // Chart harus benar-benar keluar box terlebih dahulu (candle closes outside atau open outside).
+    // Wick tipis yang menembus tanpa ada body/close di luar box TIDAK DIANGGAP SEBAGAI BREAKOUT!
+    const priorClosedBelow = priorCandles.some(p => p.close < box.bottom || (p.open < box.bottom && p.close < box.bottom));
+    const c1WasOutsideBelow = c1.close < box.bottom || (c1.open < box.bottom && c1.close <= box.bottom);
+    const c2StartedOutsideBelow = c2.open < box.bottom;
 
-    const hadBreakoutAbove = 
-      priorCandles.some(p => p.high > box.top || p.close > box.top) || 
-      c1.open > box.top || 
-      c1.high > box.top || 
-      c2.open > box.top || 
-      c2.high > box.top;
+    // Genuine Breakout Below condition (Chart benar-benar sempat keluar di bawah Box H4)
+    const hadGenuineBreakoutBelow = priorClosedBelow || c1WasOutsideBelow || c2StartedOutsideBelow;
+
+    // Genuine Breakout Above condition (Chart benar-benar sempat keluar di atas Box H4)
+    const priorClosedAbove = priorCandles.some(p => p.close > box.top || (p.open > box.top && p.close > box.top));
+    const c1WasOutsideAbove = c1.close > box.top || (c1.open > box.top && c1.close >= box.top);
+    const c2StartedOutsideAbove = c2.open > box.top;
+    const hadGenuineBreakoutAbove = priorClosedAbove || c1WasOutsideAbove || c2StartedOutsideAbove;
 
     const entryPrice = c2.close;
     const targetBoxName = `Box H4 (Lilin #${boxNumber})`;
     const boxHeight = box.top - box.bottom;
     const buffer = Math.max(boxHeight * 0.05, entryPrice * 0.0008);
-    const midPrice = parseFloat(((box.top + box.bottom) / 2).toFixed(4));
+    const midPrice = (box.top + box.bottom) / 2;
 
     const isBullishCandle = c2.close >= c2.open;
     const isBearishCandle = c2.close < c2.open;
 
-    // BUY SIGNAL: Lilin 5M Masuk ke dalam Box H4 dari bawah (Bullish)
+    // BUY SIGNAL: Lilin 5M Masuk ke dalam Box H4 dari bawah (Setelah chart benar-benar breakout keluar ke bawah)
     // Sesuai tanda kotak merah: candle masuk/menembus batas bawah box dan closing di dalam box
     const isEnteringFromBelow = 
-      (c2.open < box.bottom && c2.close >= box.bottom) ||
-      (c1.close <= box.bottom && c2.close > box.bottom) ||
-      (hadBreakoutBelow && c2.close >= box.bottom && c2.close <= box.top);
+      hadGenuineBreakoutBelow &&
+      c2.close >= box.bottom &&
+      c2.close <= box.top &&
+      (c1WasOutsideBelow || c2StartedOutsideBelow || priorClosedBelow);
 
-    // SELL SIGNAL: Lilin 5M Masuk ke dalam Box H4 dari atas (Bearish)
+    // SELL SIGNAL: Lilin 5M Masuk ke dalam Box H4 dari atas (Setelah chart benar-benar breakout keluar ke atas)
     // Sesuai tanda kotak merah: candle masuk/menembus batas atas box dan closing di dalam box
     const isEnteringFromAbove = 
-      (c2.open > box.top && c2.close <= box.top) ||
-      (c1.close >= box.top && c2.close < box.top) ||
-      (hadBreakoutAbove && c2.close <= box.top && c2.close >= box.bottom);
+      hadGenuineBreakoutAbove &&
+      c2.close <= box.top &&
+      c2.close >= box.bottom &&
+      (c1WasOutsideAbove || c2StartedOutsideAbove || priorClosedAbove);
 
     // ==========================================
     // EVALUASI MEMORY & KUALITAS MASUK BOX:
@@ -250,12 +282,12 @@ function scanSpecificBox(
       if (isWeakEntry || isBullishPairedWithBearish) {
         const breakoutHighs = priorCandles.filter(p => p.high > box.top).map(p => p.high);
         const highestHigh = Math.max(...breakoutHighs, c1.high, c2.high, box.top);
-        const stopLoss = parseFloat((highestHigh + buffer).toFixed(4));
+        const stopLoss = highestHigh + buffer;
         const risk = Math.max(stopLoss - entryPrice, entryPrice * 0.001);
 
         const tp1 = midPrice; // Garis Tengah Hitam
-        const tp2 = parseFloat(box.bottom.toFixed(4)); // Batas Bawah Box
-        const tp3 = parseFloat((box.bottom - (midPrice - box.bottom)).toFixed(4));
+        const tp2 = box.bottom; // Batas Bawah Box
+        const tp3 = box.bottom - (midPrice - box.bottom);
         const rrRatio = parseFloat((Math.abs(entryPrice - tp1) / Math.max(risk, 0.0001)).toFixed(2));
 
         const pct1 = Math.round(analysis1.bodyRatio * 100);
@@ -280,10 +312,10 @@ function scanSpecificBox(
           takeProfit3: tp3,
           riskRewardRatio: rrRatio > 0 ? rrRatio : 2.5,
           setupType: `⚠️ BUY DIBATALKAN ➔ BERUBAH MENJADI SELL (Lilin Masuk Lemah / Dibalas Bearish)`,
-          explanation: `Candle 5M mencoba masuk Box H4 #${boxNumber} dari bawah, namun terdeteksi WEAK (${pct2}% body) atau candle bullish langsung dibarengi candle bearish penolakan. Sinyal BUY otomatis DICANCEL dan berbalik menjadi SELL. Target TP 1: Garis Tengah ($${tp1.toFixed(2)}), TP 2: Batas Bawah Box ($${tp2.toFixed(2)}).`,
+          explanation: `Candle 5M mencoba masuk Box H4 #${boxNumber} dari bawah setelah breakout keluar, namun terdeteksi WEAK (${pct2}% body) atau candle bullish langsung dibarengi candle bearish penolakan. Sinyal BUY otomatis DICANCEL dan berbalik menjadi SELL. Target TP 1: Garis Tengah ($${formatPrice(tp1)}), TP 2: Batas Bawah Box ($${formatPrice(tp2)}).`,
           timestamp: c2.time,
           status: 'active',
-          confirmation: `⚠️ BUY CANCEL ➔ FLIP SELL (${isWeakEntry ? 'Candle Lemah <50%' : 'Bullish Dibalas Bearish'}) &bull; TP 1: Garis Tengah ($${tp1.toFixed(2)}) &bull; TP 2: Batas Bawah ($${tp2.toFixed(2)})`,
+          confirmation: `⚠️ BUY CANCEL ➔ FLIP SELL (${isWeakEntry ? 'Candle Lemah <50%' : 'Bullish Dibalas Bearish'}) &bull; TP 1: Garis Tengah ($${formatPrice(tp1)}) &bull; TP 2: Batas Bawah ($${formatPrice(tp2)})`,
           bodyRatioPercent: pct2,
           firstBodyRatioPercent: pct1,
           isFlipped: true,
@@ -301,12 +333,12 @@ function scanSpecificBox(
         const lowestBreakoutLow = breakoutLows.length > 0 
           ? Math.min(...breakoutLows, c1.low, c2.low) 
           : Math.min(c1.low, c2.low);
-        const stopLoss = parseFloat((Math.min(lowestBreakoutLow, box.bottom) - buffer).toFixed(4));
+        const stopLoss = Math.min(lowestBreakoutLow, box.bottom) - buffer;
         const risk = Math.max(entryPrice - stopLoss, entryPrice * 0.001);
 
         const tp1 = midPrice; // Garis Tengah Hitam
-        const tp2 = parseFloat(box.top.toFixed(4)); // Batas Atas Box
-        const tp3 = parseFloat((box.top + (box.top - midPrice)).toFixed(4));
+        const tp2 = box.top; // Batas Atas Box
+        const tp3 = box.top + (box.top - midPrice);
         const rrRatio = parseFloat((Math.abs(tp1 - entryPrice) / Math.max(risk, 0.0001)).toFixed(2));
 
         const pct1 = Math.round(analysis1.bodyRatio * 100);
@@ -331,10 +363,10 @@ function scanSpecificBox(
           takeProfit3: tp3,
           riskRewardRatio: rrRatio > 0 ? rrRatio : 2.5,
           setupType: `Lilin 5M Masuk Box H4 #${boxNumber} ➔ Sinyal BUY (TP1: Garis Tengah, TP2: Box Atas)`,
-          explanation: `Candle 5M Bullish Kuat (${pct2}% body @ ${c2.timeString}) berhasil masuk ke dalam ${targetBoxName} ($${box.bottom.toFixed(2)} - $${box.top.toFixed(2)}) dari bawah. Target TP 1 berada pada Garis Tengah Hitam ($${tp1.toFixed(2)}) dan TP 2 pada Batas Atas Box ($${tp2.toFixed(2)}).`,
+          explanation: `Candle 5M Bullish Kuat (${pct2}% body @ ${c2.timeString}) berhasil masuk ke dalam ${targetBoxName} ($${formatPrice(box.bottom)} - $${formatPrice(box.top)}) setelah breakout ke bawah. Target TP 1 berada pada Garis Tengah Hitam ($${formatPrice(tp1)}) dan TP 2 pada Batas Atas Box ($${formatPrice(tp2)}).`,
           timestamp: c2.time,
           status: 'active',
-          confirmation: `Lilin 5M Masuk Box #${boxNumber} ➔ TP 1: Garis Tengah ($${tp1.toFixed(2)}) &bull; TP 2: Box Atas ($${tp2.toFixed(2)})`,
+          confirmation: `Lilin 5M Masuk Box #${boxNumber} ➔ TP 1: Garis Tengah ($${formatPrice(tp1)}) &bull; TP 2: Box Atas ($${formatPrice(tp2)})`,
           bodyRatioPercent: pct2,
           firstBodyRatioPercent: pct1,
         };
@@ -356,12 +388,12 @@ function scanSpecificBox(
       if (isWeakEntry || isBearishPairedWithBullish) {
         const breakoutLows = priorCandles.filter(p => p.low < box.bottom).map(p => p.low);
         const lowestLow = Math.min(...breakoutLows, c1.low, c2.low, box.bottom);
-        const stopLoss = parseFloat((lowestLow - buffer).toFixed(4));
+        const stopLoss = lowestLow - buffer;
         const risk = Math.max(entryPrice - stopLoss, entryPrice * 0.001);
 
         const tp1 = midPrice; // Garis Tengah Hitam
-        const tp2 = parseFloat(box.top.toFixed(4)); // Batas Atas Box
-        const tp3 = parseFloat((box.top + (box.top - midPrice)).toFixed(4));
+        const tp2 = box.top; // Batas Atas Box
+        const tp3 = box.top + (box.top - midPrice);
         const rrRatio = parseFloat((Math.abs(tp1 - entryPrice) / Math.max(risk, 0.0001)).toFixed(2));
 
         const pct1 = Math.round(analysis1.bodyRatio * 100);
@@ -386,10 +418,10 @@ function scanSpecificBox(
           takeProfit3: tp3,
           riskRewardRatio: rrRatio > 0 ? rrRatio : 2.5,
           setupType: `⚠️ SELL DIBATALKAN ➔ BERUBAH MENJADI BUY (Lilin Masuk Lemah / Dibalas Bullish)`,
-          explanation: `Candle 5M mencoba masuk Box H4 #${boxNumber} dari atas, namun terdeteksi WEAK (${pct2}% body) atau candle bearish langsung dibarengi candle bullish penolakan. Sinyal SELL otomatis DICANCEL dan berbalik menjadi BUY. Target TP 1: Garis Tengah ($${tp1.toFixed(2)}), TP 2: Batas Atas Box ($${tp2.toFixed(2)}).`,
+          explanation: `Candle 5M mencoba masuk Box H4 #${boxNumber} dari atas setelah breakout keluar, namun terdeteksi WEAK (${pct2}% body) atau candle bearish langsung dibarengi candle bullish penolakan. Sinyal SELL otomatis DICANCEL dan berbalik menjadi BUY. Target TP 1: Garis Tengah ($${formatPrice(tp1)}), TP 2: Batas Atas Box ($${formatPrice(tp2)}).`,
           timestamp: c2.time,
           status: 'active',
-          confirmation: `⚠️ SELL CANCEL ➔ FLIP BUY (${isWeakEntry ? 'Candle Lemah <50%' : 'Bearish Dibalas Bullish'}) &bull; TP 1: Garis Tengah ($${tp1.toFixed(2)}) &bull; TP 2: Batas Atas ($${tp2.toFixed(2)})`,
+          confirmation: `⚠️ SELL CANCEL ➔ FLIP BUY (${isWeakEntry ? 'Candle Lemah <50%' : 'Bearish Dibalas Bullish'}) &bull; TP 1: Garis Tengah ($${formatPrice(tp1)}) &bull; TP 2: Batas Atas ($${formatPrice(tp2)})`,
           bodyRatioPercent: pct2,
           firstBodyRatioPercent: pct1,
           isFlipped: true,
@@ -407,12 +439,12 @@ function scanSpecificBox(
         const highestBreakoutHigh = breakoutHighs.length > 0 
           ? Math.max(...breakoutHighs, c1.high, c2.high) 
           : Math.max(c1.high, c2.high);
-        const stopLoss = parseFloat((Math.max(highestBreakoutHigh, box.top) + buffer).toFixed(4));
+        const stopLoss = Math.max(highestBreakoutHigh, box.top) + buffer;
         const risk = Math.max(stopLoss - entryPrice, entryPrice * 0.001);
 
         const tp1 = midPrice; // Garis Tengah Hitam
-        const tp2 = parseFloat(box.bottom.toFixed(4)); // Batas Bawah Box
-        const tp3 = parseFloat((box.bottom - (midPrice - box.bottom)).toFixed(4));
+        const tp2 = box.bottom; // Batas Bawah Box
+        const tp3 = box.bottom - (midPrice - box.bottom);
         const rrRatio = parseFloat((Math.abs(entryPrice - tp1) / Math.max(risk, 0.0001)).toFixed(2));
 
         const pct1 = Math.round(analysis1.bodyRatio * 100);
@@ -437,10 +469,10 @@ function scanSpecificBox(
           takeProfit3: tp3,
           riskRewardRatio: rrRatio > 0 ? rrRatio : 2.5,
           setupType: `Lilin 5M Masuk Box H4 #${boxNumber} ➔ Sinyal SELL (TP1: Garis Tengah, TP2: Box Bawah)`,
-          explanation: `Candle 5M Bearish Kuat (${pct2}% body @ ${c2.timeString}) berhasil masuk ke dalam ${targetBoxName} ($${box.bottom.toFixed(2)} - $${box.top.toFixed(2)}) dari atas. Target TP 1 berada pada Garis Tengah Hitam ($${tp1.toFixed(2)}) dan TP 2 pada Batas Bawah Box ($${tp2.toFixed(2)}).`,
+          explanation: `Candle 5M Bearish Kuat (${pct2}% body @ ${c2.timeString}) berhasil masuk ke dalam ${targetBoxName} ($${formatPrice(box.bottom)} - $${formatPrice(box.top)}) setelah breakout ke atas. Target TP 1 berada pada Garis Tengah Hitam ($${formatPrice(tp1)}) dan TP 2 pada Batas Bawah Box ($${formatPrice(tp2)}).`,
           timestamp: c2.time,
           status: 'active',
-          confirmation: `Lilin 5M Masuk Box #${boxNumber} ➔ TP 1: Garis Tengah ($${tp1.toFixed(2)}) &bull; TP 2: Box Bawah ($${tp2.toFixed(2)})`,
+          confirmation: `Lilin 5M Masuk Box #${boxNumber} ➔ TP 1: Garis Tengah ($${formatPrice(tp1)}) &bull; TP 2: Box Bawah ($${formatPrice(tp2)})`,
           bodyRatioPercent: pct2,
           firstBodyRatioPercent: pct1,
         };

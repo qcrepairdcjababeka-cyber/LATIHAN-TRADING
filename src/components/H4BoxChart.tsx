@@ -6,6 +6,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Candle, H4Box, TradingSignal, FiveMinCandleAnalysis } from '../types';
 import { ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, Crosshair, Sparkles, Sliders } from 'lucide-react';
+import { formatPrice } from '../utils/h4BoxScanner';
 
 interface H4BoxChartProps {
   candles: Candle[];
@@ -230,10 +231,10 @@ export default function H4BoxChart({
 
           {hoveredCandle ? (
             <div className="flex flex-wrap items-center gap-3 font-mono text-[11px]">
-              <span>O: <strong className="text-slate-200">${hoveredCandle.open.toLocaleString()}</strong></span>
-              <span>H: <strong className="text-slate-200">${hoveredCandle.high.toLocaleString()}</strong></span>
-              <span>L: <strong className="text-slate-200">${hoveredCandle.low.toLocaleString()}</strong></span>
-              <span>C: <strong className={hoveredCandle.close >= hoveredCandle.open ? 'text-emerald-400' : 'text-rose-400'}>${hoveredCandle.close.toLocaleString()}</strong></span>
+              <span>O: <strong className="text-slate-200">${formatPrice(hoveredCandle.open)}</strong></span>
+              <span>H: <strong className="text-slate-200">${formatPrice(hoveredCandle.high)}</strong></span>
+              <span>L: <strong className="text-slate-200">${formatPrice(hoveredCandle.low)}</strong></span>
+              <span>C: <strong className={hoveredCandle.close >= hoveredCandle.open ? 'text-emerald-400' : 'text-rose-400'}>${formatPrice(hoveredCandle.close)}</strong></span>
               <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-[10px]">
                 Body: <strong className={hoveredBodyRatio >= 50 ? 'text-emerald-400' : 'text-amber-400'}>{hoveredBodyRatio}% {hoveredBodyRatio >= 50 ? '(Kuat)' : '(Wick Dominan)'}</strong>
               </span>
@@ -242,7 +243,7 @@ export default function H4BoxChart({
             <div className="flex items-center gap-3 font-mono text-[11px]">
               <span className="text-slate-400">Harga Terkini:</span>
               <span className={`text-sm font-black ${lastCandle.close >= lastCandle.open ? 'text-emerald-400' : 'text-rose-400'}`}>
-                ${lastCandle.close.toLocaleString()}
+                ${formatPrice(lastCandle.close)}
               </span>
               {timeRemaining && (
                 <span className="text-[10px] bg-slate-950 border border-slate-800 text-slate-400 px-2 py-0.5 rounded">
@@ -335,7 +336,7 @@ export default function H4BoxChart({
               <g key={`grid-${i}`}>
                 <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#1e293b" strokeDasharray="3 3" />
                 <text x={width - paddingRight + 8} y={y + 3.5} fill="#64748b" fontSize="10" fontFamily="monospace">
-                  ${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ${formatPrice(price)}
                 </text>
               </g>
             );
@@ -439,7 +440,7 @@ export default function H4BoxChart({
                   <rect
                     x={startX + (isBox3 && timeframe === '4h' ? 178 : 8)}
                     y={Math.min(Math.max(boxMidY - 10, boxTopY + 24), boxBottomY - 24)}
-                    width="155"
+                    width="165"
                     height="18"
                     rx="3"
                     fill="#000000"
@@ -454,24 +455,24 @@ export default function H4BoxChart({
                     fontWeight="black"
                     fontFamily="sans-serif"
                   >
-                    ◾ GARIS TENGAH (TP 1): ${midPrice.toFixed(1)}
+                    ◾ GARIS TENGAH (TP 1): ${formatPrice(midPrice)}
                   </text>
 
                   {/* Price Tags on Y-Axis */}
-                  <rect x={width - paddingRight + 2} y={boxTopY - 8} width="78" height="16" rx="2" fill={badgeBg} stroke={badgeBorder} />
+                  <rect x={width - paddingRight + 2} y={boxTopY - 8} width="82" height="16" rx="2" fill={badgeBg} stroke={badgeBorder} />
                   <text x={width - paddingRight + 6} y={boxTopY + 4} fill="#f3e8ff" fontSize="9.5" fontWeight="bold" fontFamily="monospace">
-                    ${box.top.toFixed(1)}
+                    ${formatPrice(box.top)}
                   </text>
 
                   {/* Midline Price Tag on Y-Axis (Black badge) */}
-                  <rect x={width - paddingRight + 2} y={boxMidY - 8} width="78" height="16" rx="2" fill="#000000" stroke="#94a3b8" strokeWidth="1" />
+                  <rect x={width - paddingRight + 2} y={boxMidY - 8} width="82" height="16" rx="2" fill="#000000" stroke="#94a3b8" strokeWidth="1" />
                   <text x={width - paddingRight + 6} y={boxMidY + 4} fill="#f8fafc" fontSize="9" fontWeight="black" fontFamily="monospace">
-                    MID: ${midPrice.toFixed(1)}
+                    MID: ${formatPrice(midPrice)}
                   </text>
 
-                  <rect x={width - paddingRight + 2} y={boxBottomY - 8} width="78" height="16" rx="2" fill={badgeBg} stroke={badgeBorder} />
+                  <rect x={width - paddingRight + 2} y={boxBottomY - 8} width="82" height="16" rx="2" fill={badgeBg} stroke={badgeBorder} />
                   <text x={width - paddingRight + 6} y={boxBottomY + 4} fill="#f3e8ff" fontSize="9.5" fontWeight="bold" fontFamily="monospace">
-                    ${box.bottom.toFixed(1)}
+                    ${formatPrice(box.bottom)}
                   </text>
                 </g>
               );
@@ -506,11 +507,11 @@ export default function H4BoxChart({
                 strokeWidth="2"
                 strokeDasharray="5 3"
               />
-              <rect x={paddingLeft + 10} y={priceToY(activeSignal.entryPrice) - 10} width={activeSignal.isFlipped ? 270 : 150} height="20" rx="3" fill="#0369a1" stroke="#38bdf8" strokeWidth="1" />
+              <rect x={paddingLeft + 10} y={priceToY(activeSignal.entryPrice) - 10} width={activeSignal.isFlipped ? 270 : 160} height="20" rx="3" fill="#0369a1" stroke="#38bdf8" strokeWidth="1" />
               <text x={paddingLeft + 16} y={priceToY(activeSignal.entryPrice) + 4} fill="#ffffff" fontSize="10" fontWeight="bold">
                 {activeSignal.isFlipped 
-                  ? `⚡ ENTRY (${activeSignal.type} FLIP dari ${activeSignal.flippedFrom}): $${activeSignal.entryPrice.toFixed(1)}`
-                  : `🎯 ENTRY (${activeSignal.type}): $${activeSignal.entryPrice.toFixed(1)}`}
+                  ? `⚡ ENTRY (${activeSignal.type} FLIP dari ${activeSignal.flippedFrom}): $${formatPrice(activeSignal.entryPrice)}`
+                  : `🎯 ENTRY (${activeSignal.type}): $${formatPrice(activeSignal.entryPrice)}`}
               </text>
 
               {/* Stop Loss Line */}
@@ -522,9 +523,9 @@ export default function H4BoxChart({
                 stroke="#f43f5e"
                 strokeWidth="2"
               />
-              <rect x={paddingLeft + 10} y={priceToY(activeSignal.stopLoss) - 10} width="140" height="20" rx="3" fill="#be123c" stroke="#f43f5e" strokeWidth="1" />
+              <rect x={paddingLeft + 10} y={priceToY(activeSignal.stopLoss) - 10} width="150" height="20" rx="3" fill="#be123c" stroke="#f43f5e" strokeWidth="1" />
               <text x={paddingLeft + 16} y={priceToY(activeSignal.stopLoss) + 4} fill="#ffffff" fontSize="10" fontWeight="bold">
-                🛡️ STOP LOSS: ${activeSignal.stopLoss.toFixed(1)}
+                🛡️ STOP LOSS: ${formatPrice(activeSignal.stopLoss)}
               </text>
 
               {/* Take Profit 1 (Garis Tengah Box H4 - Midline 50% Hitam) */}
@@ -537,9 +538,9 @@ export default function H4BoxChart({
                 strokeWidth="2"
                 strokeDasharray="4 2"
               />
-              <rect x={paddingLeft + 10} y={priceToY(activeSignal.takeProfit1) - 10} width="210" height="20" rx="3" fill="#047857" stroke="#10b981" strokeWidth="1" />
+              <rect x={paddingLeft + 10} y={priceToY(activeSignal.takeProfit1) - 10} width="220" height="20" rx="3" fill="#047857" stroke="#10b981" strokeWidth="1" />
               <text x={paddingLeft + 16} y={priceToY(activeSignal.takeProfit1) + 4} fill="#ffffff" fontSize="9.5" fontWeight="black">
-                💰 TP 1 (Garis Tengah Box): ${activeSignal.takeProfit1.toFixed(1)}
+                💰 TP 1 (Garis Tengah Box): ${formatPrice(activeSignal.takeProfit1)}
               </text>
 
               {/* Take Profit 2 (Batas Atas Box untuk BUY / Batas Bawah Box untuk SELL) */}
@@ -552,9 +553,9 @@ export default function H4BoxChart({
                 strokeWidth="2"
                 strokeDasharray="4 2"
               />
-              <rect x={paddingLeft + 10} y={priceToY(activeSignal.takeProfit2) - 10} width="210" height="20" rx="3" fill="#065f46" stroke="#34d399" strokeWidth="1" />
+              <rect x={paddingLeft + 10} y={priceToY(activeSignal.takeProfit2) - 10} width="220" height="20" rx="3" fill="#065f46" stroke="#34d399" strokeWidth="1" />
               <text x={paddingLeft + 16} y={priceToY(activeSignal.takeProfit2) + 4} fill="#ffffff" fontSize="9.5" fontWeight="black">
-                🎯 TP 2 (Batas {activeSignal.type === 'BUY' ? 'Atas' : 'Bawah'} Box): ${activeSignal.takeProfit2.toFixed(1)}
+                🎯 TP 2 (Batas {activeSignal.type === 'BUY' ? 'Atas' : 'Bawah'} Box): ${formatPrice(activeSignal.takeProfit2)}
               </text>
             </g>
           )}
@@ -729,7 +730,7 @@ export default function H4BoxChart({
               <rect
                 x={width - paddingRight + 2}
                 y={crosshair.y - 9}
-                width="78"
+                width="82"
                 height="18"
                 rx="2"
                 fill="#0f172a"
@@ -739,11 +740,11 @@ export default function H4BoxChart({
                 x={width - paddingRight + 6}
                 y={crosshair.y + 4}
                 fill="#ffffff"
-                fontSize="10"
+                fontSize="9.5"
                 fontFamily="monospace"
                 fontWeight="bold"
               >
-                ${yToPrice(crosshair.y).toFixed(2)}
+                ${formatPrice(yToPrice(crosshair.y))}
               </text>
             </g>
           )}
@@ -756,7 +757,7 @@ export default function H4BoxChart({
           {h4Box ? (
             <span className="flex items-center gap-1.5 bg-indigo-950/70 border border-indigo-800/80 px-2.5 py-1 rounded text-[11px] text-indigo-300 font-mono font-medium">
               <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
-              <span>Box H4 Lilin #2: <strong>${h4Box.bottom.toFixed(1)} - ${h4Box.top.toFixed(1)}</strong></span>
+              <span>Box H4 Lilin #2: <strong>${formatPrice(h4Box.bottom)} - ${formatPrice(h4Box.top)}</strong></span>
             </span>
           ) : (
             <span>Memuat Box H4...</span>
