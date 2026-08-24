@@ -1,6 +1,6 @@
 {
-  "name": "H4 Box & 5M Breakout Re-entry Scanner",
-  "description": "Algorithmic multi-chart scanner for detecting real-time H4 Box (Candle #2 & #3) key zones across Gold (XAUUSD), Top 10, Top 100 to 500 Cryptos, and Binance Alpha tokens, generating BUY/SELL signals on 3 synchronized charts when 5M candles breakout and re-enter with strong body confirmation.",
+  "name": "H4 Box & 5M/15M Breakout Re-entry Scanner",
+  "description": "Algorithmic multi-chart scanner for detecting real-time H4 Box (Candle #2 & #3) key zones across Gold (XAUUSD), Top 10, Top 100 to 500 Cryptos, and Binance Alpha tokens, generating BUY/SELL signals on synchronized charts when 5M or 15M candles breakout and re-enter with strong body confirmation.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

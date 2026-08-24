@@ -49,6 +49,7 @@ export default function App() {
 
   // Multi-Pair Radar Scanner States
   const [scannerCategory, setScannerCategory] = useState<'xauusd' | 'top10' | 'top100' | 'top500' | 'alpha' | 'all'>('top10');
+  const [reentryFilter, setReentryFilter] = useState<'all_reentry' | '5m_only' | '15m_only' | 'both_tf' | 'all'>('all_reentry');
   const [scannerSearch, setScannerSearch] = useState<string>('');
   const [scannerData, setScannerData] = useState<ScanResult[]>([]);
   const [scannerLoading, setScannerLoading] = useState<boolean>(false);
@@ -95,7 +96,8 @@ export default function App() {
           throw new Error('API fallback');
         }
       } catch {
-        const mock = generateMockPair(t.symbol.includes('BTC') || t.symbol.includes('NEIRO') ? 'buy_retest' : 'neutral', 30, 50, 50);
+        const mockType = (i % 2 === 0) ? 'buy_retest' : (i % 3 === 0 ? 'sell_retest' : 'neutral');
+        const mock = generateMockPair(mockType, 30, 50, 50);
         const res = scanH4BoxAnd5m(t.symbol, mock.h4, mock.fiveM, mock.fifteenM);
         results.push(res);
       }
@@ -281,155 +283,324 @@ export default function App() {
         )}
 
         {/* TAB 2: MULTI-PAIR RADAR SCANNER */}
-        {activeTab === 'scanner' && (
-          <div className="space-y-4 animate-fade-in">
-            {/* Control Bar with Category Tabs & Search */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col gap-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Radar className="w-4 h-4 text-emerald-400" />
-                    <span>Radar Pemindai Otomatis: Top 10, Top 100 & Binance Alpha Tokens</span>
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Memindai Box H4 (Lilin #2 & #3), Midline 50%, dan konfirmasi candle kuat 5 menit secara real-time.
-                  </p>
+        {activeTab === 'scanner' && (() => {
+          // Calculate Real-time Filter & Counters
+          const totalScanned = scannerData.length;
+          const totalReentry5m = scannerData.filter(r => r.signalBox2 || r.signalBox3).length;
+          const totalReentry15m = scannerData.filter(r => r.signal15mBox2 || r.signal15mBox3).length;
+          const totalDualConfirm = scannerData.filter(r => (r.signalBox2 || r.signalBox3) && (r.signal15mBox2 || r.signal15mBox3)).length;
+          const totalAnyReentry = scannerData.filter(r => r.signalBox2 || r.signalBox3 || r.signal15mBox2 || r.signal15mBox3 || r.activeSignal).length;
+
+          const filteredResults = scannerData.filter((res) => {
+            if (scannerSearch.trim() && !res.symbol.toLowerCase().includes(scannerSearch.toLowerCase().trim())) {
+              return false;
+            }
+
+            const has5m = !!(res.signalBox2 || res.signalBox3);
+            const has15m = !!(res.signal15mBox2 || res.signal15mBox3);
+            const hasAnyReentry = has5m || has15m || !!res.activeSignal;
+
+            if (reentryFilter === 'all_reentry') {
+              return hasAnyReentry;
+            }
+            if (reentryFilter === '5m_only') {
+              return has5m;
+            }
+            if (reentryFilter === '15m_only') {
+              return has15m;
+            }
+            if (reentryFilter === 'both_tf') {
+              return has5m && has15m;
+            }
+            return true; // 'all'
+          });
+
+          return (
+            <div className="space-y-4 animate-fade-in">
+              {/* Radar Strategy Rule Notice */}
+              <div className="bg-gradient-to-r from-indigo-950/80 via-slate-900 to-indigo-950/80 border border-indigo-500/40 rounded-2xl p-4 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-indigo-600/30 border border-indigo-500/40 rounded-xl text-indigo-300">
+                    <Radar className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-black uppercase tracking-wider bg-indigo-500 text-slate-950 px-2 py-0.5 rounded">
+                        RADAR KHUSUS BREAKOUT ➔ RE-ENTRY MASUK BOX
+                      </span>
+                      <span className="text-xs text-indigo-300 font-bold">
+                        TF 5 Menit &amp; TF 15 Menit
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-1 max-w-3xl">
+                      Radar ini secara ketat <strong>hanya memindai dan mendeteksi token/koin yang telah breakout keluar dari Box H4 (Lilin #2 / #3) lalu masuk kembali (re-entry)</strong> dengan badan lilin kuat (&ge; 50% body) pada Timeframe 5M maupun 15M.
+                    </p>
+                  </div>
                 </div>
 
                 <button
                   onClick={() => runMultiPairScanner(scannerCategory)}
                   disabled={scannerLoading}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black text-xs rounded-xl transition flex items-center gap-2 cursor-pointer shadow-md self-start sm:self-auto"
+                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black text-xs rounded-xl transition flex items-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/20 shrink-0 self-start md:self-auto"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${scannerLoading ? 'animate-spin' : ''}`} />
-                  <span>{scannerLoading ? `Memindai (${scanProgress.current}/${scanProgress.total})...` : 'Pindai Kategori Ini'}</span>
+                  <span>{scannerLoading ? `Memindai (${scanProgress.current}/${scanProgress.total})...` : 'Pindai Ulang Kategori Ini'}</span>
                 </button>
               </div>
 
-              {/* Category Pills & Search */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <button
-                    onClick={() => setScannerCategory('xauusd')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
-                      scannerCategory === 'xauusd'
-                        ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 ring-1 ring-amber-400/50'
-                        : 'bg-slate-950 text-amber-400 hover:text-amber-300 border border-amber-500/30'
-                    }`}
-                  >
-                    <Coins className="w-3.5 h-3.5 text-amber-400" />
-                    <span>🏆 Gold (XAU/USD)</span>
-                  </button>
-
-                  <button
-                    onClick={() => setScannerCategory('top10')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
-                      scannerCategory === 'top10'
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                        : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
-                    }`}
-                  >
-                    <Zap className="w-3.5 h-3.5 text-amber-400" />
-                    <span>⚡ Top 10 Pairs</span>
-                  </button>
-
-                  <button
-                    onClick={() => setScannerCategory('top100')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
-                      scannerCategory === 'top100'
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                        : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
-                    }`}
-                  >
-                    <Star className="w-3.5 h-3.5 text-blue-400" />
-                    <span>💎 Top 100 Cryptos</span>
-                  </button>
-
-                  <button
-                    onClick={() => setScannerCategory('top500')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
-                      scannerCategory === 'top500'
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                        : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
-                    }`}
-                  >
-                    <Globe className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>🌐 Top 100 - 500</span>
-                  </button>
-
-                  <button
-                    onClick={() => setScannerCategory('alpha')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
-                      scannerCategory === 'alpha'
-                        ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 ring-1 ring-amber-400/50'
-                        : 'bg-slate-950 text-amber-400 hover:text-amber-300 border border-amber-500/30'
-                    }`}
-                  >
-                    <Rocket className="w-3.5 h-3.5 text-amber-300 animate-bounce" />
-                    <span>🚀 Binance Alpha</span>
-                  </button>
-
-                  <button
-                    onClick={() => setScannerCategory('all')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
-                      scannerCategory === 'all'
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                        : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
-                    }`}
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
-                    <span>✨ Semua Pasar</span>
-                  </button>
+              {/* Quick Metric Statistics */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col justify-between">
+                  <span className="text-[11px] text-slate-400 font-medium">🎯 Re-entry Aktif (5M / 15M)</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-xl font-black text-emerald-400 font-mono">{totalAnyReentry}</span>
+                    <span className="text-[10px] text-slate-500">dari {totalScanned} koin</span>
+                  </div>
                 </div>
 
-                {/* Table Search */}
-                <div className="relative w-full sm:w-64">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Cari token di tabel..."
-                    value={scannerSearch}
-                    onChange={(e) => setScannerSearch(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                  />
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col justify-between">
+                  <span className="text-[11px] text-slate-400 font-medium">⚡ Sinyal Re-entry TF 5M</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-xl font-black text-indigo-400 font-mono">{totalReentry5m}</span>
+                    <span className="text-[10px] text-indigo-300/70">Box #2 &amp; #3</span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col justify-between">
+                  <span className="text-[11px] text-slate-400 font-medium">🕒 Sinyal Re-entry TF 15M</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-xl font-black text-cyan-400 font-mono">{totalReentry15m}</span>
+                    <span className="text-[10px] text-cyan-300/70">Box #2 &amp; #3</span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-col justify-between">
+                  <span className="text-[11px] text-slate-400 font-medium">💎 Konfirmasi Ganda (5M + 15M)</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-xl font-black text-amber-400 font-mono">{totalDualConfirm}</span>
+                    <span className="text-[10px] text-amber-300/70">Sangat Kuat</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Scanner Table */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-950/90 border-b border-slate-800 text-slate-400 font-bold uppercase tracking-wider text-[11px]">
-                    <tr>
-                      <th className="py-3.5 px-4">Token & Kategori</th>
-                      <th className="py-3.5 px-4">Harga Terkini</th>
-                      <th className="py-3.5 px-4">Box H4 Lilin #2</th>
-                      <th className="py-3.5 px-4">Box H4 Lilin #3</th>
-                      <th className="py-3.5 px-4">Kondisi Lilin 5M</th>
-                      <th className="py-3.5 px-4">Status Sinyal & TP (Close H4)</th>
-                      <th className="py-3.5 px-4 text-right">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 font-mono">
-                    {scannerLoading && scannerData.length === 0 ? (
+              {/* Control Bar: Categories, Filter Mode & Search */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+                {/* Category Selector */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      onClick={() => setScannerCategory('xauusd')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
+                        scannerCategory === 'xauusd'
+                          ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 ring-1 ring-amber-400/50'
+                          : 'bg-slate-950 text-amber-400 hover:text-amber-300 border border-amber-500/30'
+                      }`}
+                    >
+                      <Coins className="w-3.5 h-3.5 text-amber-400" />
+                      <span>🏆 Gold (XAU/USD)</span>
+                    </button>
+
+                    <button
+                      onClick={() => setScannerCategory('top10')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
+                        scannerCategory === 'top10'
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                          : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                      }`}
+                    >
+                      <Zap className="w-3.5 h-3.5 text-amber-400" />
+                      <span>⚡ Top 10 Pairs</span>
+                    </button>
+
+                    <button
+                      onClick={() => setScannerCategory('top100')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
+                        scannerCategory === 'top100'
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                          : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                      }`}
+                    >
+                      <Star className="w-3.5 h-3.5 text-blue-400" />
+                      <span>💎 Top 100 Cryptos</span>
+                    </button>
+
+                    <button
+                      onClick={() => setScannerCategory('top500')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
+                        scannerCategory === 'top500'
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                          : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                      }`}
+                    >
+                      <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>🌐 Top 100 - 500</span>
+                    </button>
+
+                    <button
+                      onClick={() => setScannerCategory('alpha')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
+                        scannerCategory === 'alpha'
+                          ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 ring-1 ring-amber-400/50'
+                          : 'bg-slate-950 text-amber-400 hover:text-amber-300 border border-amber-500/30'
+                      }`}
+                    >
+                      <Rocket className="w-3.5 h-3.5 text-amber-300 animate-bounce" />
+                      <span>🚀 Binance Alpha</span>
+                    </button>
+
+                    <button
+                      onClick={() => setScannerCategory('all')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer ${
+                        scannerCategory === 'all'
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                          : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
+                      <span>✨ Semua Pasar</span>
+                    </button>
+                  </div>
+
+                  {/* Search Input */}
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Cari token..."
+                      value={scannerSearch}
+                      onChange={(e) => setScannerSearch(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Re-entry Filter Sub-Pills */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-800">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-slate-400 mr-1">Filter Radar:</span>
+                    <button
+                      onClick={() => setReentryFilter('all_reentry')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-extrabold transition cursor-pointer flex items-center gap-1 ${
+                        reentryFilter === 'all_reentry'
+                          ? 'bg-emerald-500 text-slate-950 font-black shadow'
+                          : 'bg-slate-950 text-emerald-400 hover:bg-slate-800 border border-emerald-500/30'
+                      }`}
+                    >
+                      <span>🎯 Hanya Re-entry Aktif (5M / 15M)</span>
+                      <span className="text-[10px] px-1.5 py-0.2 bg-black/30 rounded-full font-mono">{totalAnyReentry}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setReentryFilter('5m_only')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-extrabold transition cursor-pointer flex items-center gap-1 ${
+                        reentryFilter === '5m_only'
+                          ? 'bg-indigo-500 text-white font-black shadow'
+                          : 'bg-slate-950 text-indigo-400 hover:bg-slate-800 border border-indigo-500/30'
+                      }`}
+                    >
+                      <span>⚡ Re-entry TF 5M</span>
+                      <span className="text-[10px] px-1.5 py-0.2 bg-black/30 rounded-full font-mono">{totalReentry5m}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setReentryFilter('15m_only')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-extrabold transition cursor-pointer flex items-center gap-1 ${
+                        reentryFilter === '15m_only'
+                          ? 'bg-cyan-500 text-slate-950 font-black shadow'
+                          : 'bg-slate-950 text-cyan-400 hover:bg-slate-800 border border-cyan-500/30'
+                      }`}
+                    >
+                      <span>🕒 Re-entry TF 15M</span>
+                      <span className="text-[10px] px-1.5 py-0.2 bg-black/30 rounded-full font-mono">{totalReentry15m}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setReentryFilter('both_tf')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-extrabold transition cursor-pointer flex items-center gap-1 ${
+                        reentryFilter === 'both_tf'
+                          ? 'bg-amber-400 text-slate-950 font-black shadow'
+                          : 'bg-slate-950 text-amber-400 hover:bg-slate-800 border border-amber-500/30'
+                      }`}
+                    >
+                      <span>🔥 Konfirmasi Ganda (5M + 15M)</span>
+                      <span className="text-[10px] px-1.5 py-0.2 bg-black/30 rounded-full font-mono">{totalDualConfirm}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setReentryFilter('all')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        reentryFilter === 'all'
+                          ? 'bg-slate-700 text-white'
+                          : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                      }`}
+                    >
+                      <span>👁️ Tampilkan Semua ({totalScanned})</span>
+                    </button>
+                  </div>
+
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    Menampilkan <strong>{filteredResults.length}</strong> token
+                  </span>
+                </div>
+              </div>
+
+              {/* Scanner Table */}
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-950/90 border-b border-slate-800 text-slate-400 font-bold uppercase tracking-wider text-[11px]">
                       <tr>
-                        <td colSpan={7} className="py-16 text-center text-slate-400 font-sans">
-                          <RefreshCw className="w-7 h-7 animate-spin mx-auto text-indigo-400 mb-3" />
-                          <span className="font-bold">Memindai pasangan {scannerCategory.toUpperCase()} secara real-time ({scanProgress.current}/{scanProgress.total})...</span>
-                        </td>
+                        <th className="py-3.5 px-4">Token &amp; Kategori</th>
+                        <th className="py-3.5 px-4">Harga Terkini</th>
+                        <th className="py-3.5 px-4">Box H4 Lilin #2 &amp; #3</th>
+                        <th className="py-3.5 px-4">Re-entry TF 5M</th>
+                        <th className="py-3.5 px-4">Re-entry TF 15M</th>
+                        <th className="py-3.5 px-4">Target TP Garis Tengah &amp; SL</th>
+                        <th className="py-3.5 px-4 text-right">Aksi</th>
                       </tr>
-                    ) : (
-                      scannerData
-                        .filter((res) => {
-                          if (!scannerSearch.trim()) return true;
-                          return res.symbol.toLowerCase().includes(scannerSearch.toLowerCase().trim());
-                        })
-                        .map((res) => {
-                          const sig2 = res.signalBox2;
-                          const sig3 = res.signalBox3;
-                          const anySig = sig2 || sig3 || res.activeSignal;
-                          const l5m = res.latest5mAnalysis;
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-mono">
+                      {scannerLoading && scannerData.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-16 text-center text-slate-400 font-sans">
+                            <RefreshCw className="w-7 h-7 animate-spin mx-auto text-indigo-400 mb-3" />
+                            <span className="font-bold">Memindai pasangan {scannerCategory.toUpperCase()} secara real-time ({scanProgress.current}/{scanProgress.total})...</span>
+                          </td>
+                        </tr>
+                      ) : filteredResults.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400 font-sans">
+                            <div className="max-w-md mx-auto space-y-3">
+                              <AlertCircle className="w-8 h-8 mx-auto text-amber-400" />
+                              <h4 className="text-sm font-bold text-white">Tidak Ada Token yang Memenuhi Filter Re-entry</h4>
+                              <p className="text-xs text-slate-400">
+                                Saat ini tidak ada token pada kategori ini yang sedang berada dalam kondisi breakout lalu masuk kembali ke Box H4 pada TF yang dipilih.
+                              </p>
+                              <div className="flex items-center justify-center gap-2 pt-2">
+                                <button
+                                  onClick={() => setReentryFilter('all')}
+                                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg transition cursor-pointer"
+                                >
+                                  Tampilkan Semua Koin Dipindai
+                                </button>
+                                <button
+                                  onClick={() => runMultiPairScanner(scannerCategory)}
+                                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition cursor-pointer"
+                                >
+                                  Pindai Ulang
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredResults.map((res) => {
+                          const sig5m2 = res.signalBox2;
+                          const sig5m3 = res.signalBox3;
+                          const sig15m2 = res.signal15mBox2;
+                          const sig15m3 = res.signal15mBox3;
+
+                          const primarySig = sig5m2 || sig5m3 || sig15m2 || sig15m3 || res.activeSignal;
                           const lastCandle = res.fiveMinCandles[res.fiveMinCandles.length - 1];
                           const tokInfo = CRYPTO_TOKENS.find((t) => t.symbol === res.symbol);
                           const isGold = tokInfo?.category === 'xauusd' || res.symbol.includes('XAU') || res.symbol.includes('PAXG');
@@ -437,6 +608,7 @@ export default function App() {
 
                           return (
                             <tr key={res.symbol} className="hover:bg-slate-800/40 transition">
+                              {/* Token & Kategori */}
                               <td className="py-3.5 px-4 font-sans">
                                 <div className="flex items-center gap-2">
                                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-[11px] ${
@@ -474,67 +646,137 @@ export default function App() {
                                 </div>
                               </td>
 
+                              {/* Harga Terkini */}
                               <td className="py-3.5 px-4 text-slate-200 font-bold">
                                 ${lastCandle ? lastCandle.close.toLocaleString() : '-'}
                               </td>
 
+                              {/* Box H4 Lilin #2 & #3 */}
                               <td className="py-3.5 px-4">
-                                {res.h4Box?.box2 ? (
-                                  <div className="space-y-0.5">
-                                    <span className="inline-flex items-center gap-1 bg-indigo-950/70 border border-indigo-800/80 px-2 py-0.5 rounded text-indigo-300 font-mono font-medium text-[11px]">
-                                      ${res.h4Box.box2.bottom.toFixed(1)} - ${res.h4Box.box2.top.toFixed(1)}
-                                    </span>
-                                    <span className="block text-[10px] text-indigo-400 font-mono">
-                                      Mid: ${((res.h4Box.box2.top + res.h4Box.box2.bottom) / 2).toFixed(1)}
-                                    </span>
-                                  </div>
-                                ) : '-'}
+                                <div className="space-y-1">
+                                  {res.h4Box?.box2 && (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[10px] text-indigo-400 font-bold">#2:</span>
+                                      <span className="text-indigo-300 font-mono text-[11px]">
+                                        ${res.h4Box.box2.bottom.toFixed(1)} - ${res.h4Box.box2.top.toFixed(1)}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {res.h4Box?.box3 && (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[10px] text-purple-400 font-bold">#3:</span>
+                                      <span className="text-purple-300 font-mono text-[11px]">
+                                        ${res.h4Box.box3.bottom.toFixed(1)} - ${res.h4Box.box3.top.toFixed(1)}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
                               </td>
 
-                              <td className="py-3.5 px-4">
-                                {res.h4Box?.box3 ? (
-                                  <div className="space-y-0.5">
-                                    <span className="inline-flex items-center gap-1 bg-purple-950/70 border border-purple-800/80 px-2 py-0.5 rounded text-purple-300 font-mono font-medium text-[11px]">
-                                      ${res.h4Box.box3.bottom.toFixed(1)} - ${res.h4Box.box3.top.toFixed(1)}
-                                    </span>
-                                    <span className="block text-[10px] text-purple-400 font-mono">
-                                      Mid: ${((res.h4Box.box3.top + res.h4Box.box3.bottom) / 2).toFixed(1)}
-                                    </span>
-                                  </div>
-                                ) : '-'}
-                              </td>
-
+                              {/* Sinyal TF 5M */}
                               <td className="py-3.5 px-4 font-sans">
-                                {l5m ? (
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold ${
-                                    l5m.isStrong ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-950 text-slate-400'
-                                  }`}>
-                                    {l5m.isStrong ? `🔥 ${(l5m.bodyRatio * 100).toFixed(0)}% Body` : `Wick (${(l5m.bodyRatio * 100).toFixed(0)}%)`}
-                                  </span>
-                                ) : '-'}
-                              </td>
-
-                              <td className="py-3.5 px-4 font-sans">
-                                {anySig ? (
+                                {sig5m2 || sig5m3 ? (
                                   <div className="space-y-1">
-                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black uppercase ${
-                                      anySig.type === 'BUY'
-                                        ? 'bg-emerald-500 text-slate-950 animate-pulse'
-                                        : 'bg-rose-500 text-white animate-pulse'
-                                    }`}>
-                                      ⚡ {anySig.type} (Box #{anySig.targetBoxNumber || (sig3 ? 3 : 2)})
-                                    </span>
-                                    <span className="block text-[10px] text-emerald-400 font-mono">
-                                      TP Close H4: ${anySig.takeProfit1.toFixed(2)}
-                                    </span>
+                                    {sig5m2 && (
+                                      <div className="flex items-center gap-1.5">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                          sig5m2.isFlipped
+                                            ? 'bg-amber-400 text-slate-950 animate-pulse'
+                                            : sig5m2.type === 'BUY'
+                                            ? 'bg-emerald-500 text-slate-950'
+                                            : 'bg-rose-500 text-white'
+                                        }`}>
+                                          {sig5m2.isFlipped ? `⚡ FLIP ${sig5m2.type}` : `5M ${sig5m2.type}`} (Box #2)
+                                        </span>
+                                        <span className="text-[10px] text-emerald-400 font-mono font-bold">
+                                          {sig5m2.bodyRatioPercent}%
+                                        </span>
+                                      </div>
+                                    )}
+                                    {sig5m3 && (
+                                      <div className="flex items-center gap-1.5">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                          sig5m3.isFlipped
+                                            ? 'bg-amber-400 text-slate-950 animate-pulse'
+                                            : sig5m3.type === 'BUY'
+                                            ? 'bg-purple-400 text-slate-950'
+                                            : 'bg-rose-500 text-white'
+                                        }`}>
+                                          {sig5m3.isFlipped ? `⚡ FLIP ${sig5m3.type}` : `5M ${sig5m3.type}`} (Box #3)
+                                        </span>
+                                        <span className="text-[10px] text-purple-400 font-mono font-bold">
+                                          {sig5m3.bodyRatioPercent}%
+                                        </span>
+                                      </div>
+                                    )}
                                   </div>
                                 ) : (
-                                  <span className="text-slate-500 text-xs">
-                                    Standby Pemantauan
-                                  </span>
+                                  <span className="text-slate-500 text-[11px]">Belum Re-entry</span>
                                 )}
                               </td>
 
+                              {/* Sinyal TF 15M */}
+                              <td className="py-3.5 px-4 font-sans">
+                                {sig15m2 || sig15m3 ? (
+                                  <div className="space-y-1">
+                                    {sig15m2 && (
+                                      <div className="flex items-center gap-1.5">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                          sig15m2.isFlipped
+                                            ? 'bg-amber-400 text-slate-950 animate-pulse'
+                                            : sig15m2.type === 'BUY'
+                                            ? 'bg-cyan-400 text-slate-950'
+                                            : 'bg-rose-500 text-white'
+                                        }`}>
+                                          {sig15m2.isFlipped ? `⚡ FLIP ${sig15m2.type}` : `15M ${sig15m2.type}`} (Box #2)
+                                        </span>
+                                        <span className="text-[10px] text-cyan-400 font-mono font-bold">
+                                          {sig15m2.bodyRatioPercent}%
+                                        </span>
+                                      </div>
+                                    )}
+                                    {sig15m3 && (
+                                      <div className="flex items-center gap-1.5">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                          sig15m3.isFlipped
+                                            ? 'bg-amber-400 text-slate-950 animate-pulse'
+                                            : sig15m3.type === 'BUY'
+                                            ? 'bg-fuchsia-400 text-slate-950'
+                                            : 'bg-rose-500 text-white'
+                                        }`}>
+                                          {sig15m3.isFlipped ? `⚡ FLIP ${sig15m3.type}` : `15M ${sig15m3.type}`} (Box #3)
+                                        </span>
+                                        <span className="text-[10px] text-fuchsia-400 font-mono font-bold">
+                                          {sig15m3.bodyRatioPercent}%
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-500 text-[11px]">Belum Re-entry</span>
+                                )}
+                              </td>
+
+                              {/* Target TP & SL */}
+                              <td className="py-3.5 px-4 font-sans">
+                                {primarySig ? (
+                                  <div className="space-y-0.5 text-[11px] font-mono">
+                                    <div className="text-emerald-400 font-bold">
+                                      TP 1 (Mid): ${primarySig.takeProfit1.toFixed(2)}
+                                    </div>
+                                    <div className="text-teal-300 text-[10px]">
+                                      TP 2 (Box): ${primarySig.takeProfit2.toFixed(2)}
+                                    </div>
+                                    <div className="text-rose-400 text-[10px]">
+                                      SL: ${primarySig.stopLoss.toFixed(2)}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-500 text-xs">-</span>
+                                )}
+                              </td>
+
+                              {/* Aksi */}
                               <td className="py-3.5 px-4 text-right font-sans">
                                 <button
                                   onClick={() => {
@@ -543,20 +785,21 @@ export default function App() {
                                   }}
                                   className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ml-auto"
                                 >
-                                  <span>Buka 3 Chart</span>
+                                  <span>Buka 5 Chart</span>
                                   <ArrowRight className="w-3 h-3" />
                                 </button>
                               </td>
                             </tr>
                           );
                         })
-                    )}
-                  </tbody>
-                </table>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* TAB 3: SIMULATOR & TESTER */}
         {activeTab === 'sandbox' && (
