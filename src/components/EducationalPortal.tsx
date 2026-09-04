@@ -4,50 +4,61 @@
  */
 
 import React, { useState } from 'react';
-import { 
-  BookOpen, 
-  Layers, 
-  Flame, 
-  TrendingUp, 
-  TrendingDown, 
-  ShieldCheck, 
-  Target, 
-  CheckCircle2, 
-  XCircle,
-  HelpCircle,
-  Zap
+import {
+  BookOpen,
+  Layers,
+  Flame,
+  Target,
+  Clock,
+  Crosshair,
+  Compass,
+  Hash,
+  ShieldCheck,
+  CheckCircle2,
+  AlertTriangle,
+  Zap,
+  TrendingUp,
+  Award
 } from 'lucide-react';
 
 export default function EducationalPortal() {
-  const [activeTab, setActiveTab] = useState<'h4_box' | 'strong_candle' | 'buy_rules' | 'sell_rules' | 'memory_flip' | 'risk_mgmt'>('h4_box');
+  const [activeTab, setActiveTab] = useState<
+    'stf' | 'vbo_engulfing' | 'zero_floating' | 'kode_6c_9c' | 'zona_1_lot' | 'storyline' | 'gun_number'
+  >('stf');
 
   return (
-    <div id="educational-portal" className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-2xl font-sans animate-fade-in">
+    <div id="educational-portal" className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl font-sans animate-fade-in space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-5 mb-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-indigo-600/20 border border-indigo-500/30 rounded-xl text-indigo-400">
-            <BookOpen className="w-6 h-6" />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+        <div className="flex items-start gap-3.5">
+          <div className="p-3 bg-gradient-to-br from-amber-500/20 to-red-500/20 border border-amber-500/30 rounded-2xl text-amber-400">
+            <BookOpen className="w-7 h-7" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-slate-100 font-sans tracking-tight">
-              Panduan Metode Box H4 (Lilin Ke-2 & #3) + 5M Candle Kuat + Memory Flip
-            </h2>
-            <p className="text-xs text-slate-400">
-              SOP lengkap strategi multi-timeframe: Menentukan Key Zone Box H4 dari Lilin Ke-2/Ke-3, konfirmasi eksekusi di Timeframe 5M, dan aturan otomatis Memory Inget Reversal.
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-red-600 text-white font-black text-[10px] tracking-wider uppercase">
+                STRATEGI SNIPER LENGKAP
+              </span>
+              <h2 className="text-xl font-black text-white tracking-tight">
+                7 Pilar Utama Strategi Trading Institusional
+              </h2>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Panduan terperinci SOP Sifir Time Frame, Valid Breakout &amp; Engulfing, Zero Floating Zona, Kode 6C.9C, Zona 1 Lot [FM], Storyline, dan Gun Number.
             </p>
           </div>
         </div>
 
         {/* Tab Selection */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {[
-            { id: 'h4_box', label: '1. Area Box H4 (#2 & #3)', icon: Layers },
-            { id: 'strong_candle', label: '2. Candle 5M Kuat (Bukan Wick)', icon: Flame },
-            { id: 'buy_rules', label: '3. Setup BUY', icon: TrendingUp },
-            { id: 'sell_rules', label: '4. Setup SELL', icon: TrendingDown },
-            { id: 'memory_flip', label: '5. Aturan Memory (Cancel & Flip)', icon: Zap },
-            { id: 'risk_mgmt', label: '6. Manajemen Risiko & TP', icon: Target },
+            { id: 'stf', label: '1. Sifir Time Frame', icon: Layers },
+            { id: 'vbo_engulfing', label: '2. Valid Breakout & Engulfing', icon: Flame },
+            { id: 'zero_floating', label: '3. Zero Floating Zona', icon: Crosshair },
+            { id: 'kode_6c_9c', label: '4. Kode 6C.9C', icon: Clock },
+            { id: 'zona_1_lot', label: '5. Zona 1 Lot [FM]', icon: Award },
+            { id: 'storyline', label: '6. Storyline', icon: Compass },
+            { id: 'gun_number', label: '7. Gun Number', icon: Hash },
           ].map((tab) => {
             const Icon = tab.icon;
             return (
@@ -55,346 +66,358 @@ export default function EducationalPortal() {
                 key={tab.id}
                 id={`btn-tab-edu-${tab.id}`}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold tracking-wide transition-all cursor-pointer ${
                   activeTab === tab.id
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200 hover:bg-slate-800'
+                    ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/20'
+                    : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
-                {tab.label}
+                <span>{tab.label}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* TAB 1: CARA MEMBENTUK BOX H4 (LILIN KE-2) */}
-      {activeTab === 'h4_box' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-          <div className="space-y-4">
-            <span className="px-2.5 py-1 rounded bg-indigo-500/10 text-indigo-400 text-xs font-black uppercase tracking-wider inline-block">
-              Higher Timeframe (H4) Key Zone
-            </span>
-            <h3 className="text-xl font-black text-slate-100">
-              Menentukan Area Box pada Lilin H4 Real-Time Ke-2
-            </h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Di timeframe 4 Jam (H4), kita mengunci <strong>Lilin ke-2</strong> (lilin tertutup tepat sebelum lilin yang sedang running) sebagai area referensi tunggal. High dan Low dari lilin ke-2 inilah yang menjadi <strong>Box H4</strong>.
-            </p>
+      {/* Content Area */}
+      <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-6">
+        {/* 1. SIFIR TIME FRAME */}
+        {activeTab === 'stf' && (
+          <div className="space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center font-black text-amber-400 text-sm">
+                1
+              </span>
+              <div>
+                <h3 className="text-base font-black text-white">Sifir Time Frame (STF)</h3>
+                <p className="text-xs text-slate-400">
+                  Prinsip hirarki fraktal pasar: Menghubungkan waktu besar (HTF) hingga waktu eksekusi presisi (LTF).
+                </p>
+              </div>
+            </div>
 
-            <div className="space-y-2.5 bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-slate-300">
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="text-indigo-300">Batas Atas Box (High Lilin #2):</strong> Titik harga tertinggi dari lilin H4 ke-2.
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+                <span className="text-[11px] font-black uppercase text-amber-400">A. Timeframe Induk (HTF)</span>
+                <h4 className="text-xs font-bold text-white">Daily &amp; H4 (Big Map)</h4>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Digunakan untuk membaca <strong>Storyline</strong>, tren dominan, serta batas Support/Resistance dan Engulfing mayor.
+                </p>
+                <div className="text-[11px] text-slate-400 font-mono bg-slate-950 p-2 rounded border border-slate-800">
+                  1 Candle Daily = 6 Candle H4 (Siklus 24 Jam)
                 </div>
               </div>
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="text-indigo-300">Batas Bawah Box (Low Lilin #2):</strong> Titik harga terendah dari lilin H4 ke-2.
+
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+                <span className="text-[11px] font-black uppercase text-cyan-400">B. Timeframe Transisi (MTF)</span>
+                <h4 className="text-xs font-bold text-white">H1 &amp; M15 (Structure)</h4>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Melihat formasi struktur wave, konfirmasi pembalikan (Kode 6C.9C), dan pembentukan pola breakout awal.
+                </p>
+                <div className="text-[11px] text-slate-400 font-mono bg-slate-950 p-2 rounded border border-slate-800">
+                  1 Candle H4 = 16 Candle M15
                 </div>
               </div>
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="text-white">Proyeksi Otomatis ke Chart 5M:</strong> Box ini diproyeksikan secara real-time ke grafik 5 Menit sebagai zona pemicu entri trading presisi.
+
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+                <span className="text-[11px] font-black uppercase text-emerald-400">C. Timeframe Eksekusi (LTF)</span>
+                <h4 className="text-xs font-bold text-white">M5 &amp; M1 (Sniper Trigger)</h4>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Digunakan khusus untuk eksekusi <strong>Zero Floating Zona</strong> dengan Stop Loss ultra tipis di ujung shadow (wick).
+                </p>
+                <div className="text-[11px] text-slate-400 font-mono bg-slate-950 p-2 rounded border border-slate-800">
+                  1 Candle M15 = 3 Candle M5
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Diagram Box H4 Lilin 2 */}
-          <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col items-center">
-            <h4 className="text-xs font-bold text-slate-400 mb-4 uppercase tracking-wider">Visualisasi Box H4 (Lilin #2)</h4>
-            <div className="w-full max-w-sm h-64 relative border border-slate-800 rounded-xl bg-slate-900/50 p-4 flex items-center justify-around">
-              {/* Box 2 Overlay */}
-              <div className="absolute left-16 right-16 top-10 bottom-6 bg-indigo-600/20 border-2 border-dashed border-indigo-400/80 rounded-lg flex items-start justify-center p-1.5 pointer-events-none">
-                <span className="text-[10px] font-extrabold text-indigo-300 bg-indigo-950 px-2 py-0.5 rounded border border-indigo-500/50">
-                  BOX H4 (LILIN #2)
+            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-xs text-slate-200">
+                <strong className="text-amber-400">Kaidah Utama STF:</strong> Jangan pernah entry melawan arah Storyline HTF. Jika HTF menolak Resistance Engulfing menuju Support bawah, LTF hanya mencari peluang SELL di Zero Floating Zona.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2. VALID BREAKOUT & ENGULFING */}
+        {activeTab === 'vbo_engulfing' && (
+          <div className="space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center font-black text-amber-400 text-sm">
+                2
+              </span>
+              <div>
+                <h3 className="text-base font-black text-white">Valid Breakout &amp; Engulfing (VBO)</h3>
+                <p className="text-xs text-slate-400">
+                  Kekuatan badan lilin (body close) menentukan keabsahan momentum dan penciptaan zona entry baru.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-900 border border-emerald-500/30 rounded-xl p-4 space-y-3">
+                <span className="text-xs font-black uppercase text-emerald-400 flex items-center gap-1.5">
+                  <TrendingUp className="w-4 h-4" />
+                  Bullish Engulfing &amp; Valid Breakout
                 </span>
-              </div>
-
-              {/* Candle 2 (Acuan Box) */}
-              <div className="flex flex-col items-center z-10">
-                <div className="w-0.5 h-10 bg-slate-400"></div>
-                <div className="w-10 h-28 bg-indigo-500 rounded-sm flex items-center justify-center text-xs font-black text-white shadow-lg border border-indigo-300">
-                  #2
-                </div>
-                <div className="w-0.5 h-6 bg-slate-400"></div>
-                <span className="text-xs font-black text-indigo-300 mt-1">Lilin #2 (Acuan)</span>
-              </div>
-
-              {/* Candle 1 (Running) */}
-              <div className="flex flex-col items-center z-10 opacity-70">
-                <div className="w-0.5 h-6 bg-slate-400"></div>
-                <div className="w-10 h-16 bg-slate-700 border border-slate-400 border-dashed rounded-sm flex items-center justify-center text-xs font-bold text-white">
-                  #1
-                </div>
-                <div className="w-0.5 h-6 bg-slate-400"></div>
-                <span className="text-xs font-bold text-slate-400 mt-1">Lilin #1 (Live)</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: CANDLE 5M KUAT VS WICK TIPIS */}
-      {activeTab === 'strong_candle' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-          <div className="space-y-4">
-            <span className="px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 text-xs font-black uppercase tracking-wider inline-block">
-              Lower Timeframe (5M) Rule
-            </span>
-            <h3 className="text-xl font-black text-slate-100">
-              Aturan Ketat: "Candle 5M Kuat, Bukan Wick / Sumbu"
-            </h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Banyak false signal terjadi ketika harga hanya menyentuh zona dengan sumbu panjang (wick) lalu berbalik seketika. Strategi ini <strong>mewajibkan badan candle (body) mendominasi minimal 50%</strong> dari total rentang lilin 5 Menit.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              <div className="bg-emerald-950/30 border border-emerald-500/40 p-3.5 rounded-xl">
-                <div className="flex items-center gap-2 text-emerald-400 font-black text-xs mb-1.5">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>VALID (CANDLE KUAT)</span>
-                </div>
-                <ul className="text-[11px] text-slate-300 space-y-1 list-disc pl-4">
-                  <li>Body &ge; 50% dari total High-Low</li>
-                  <li>Momentum tegas saat masuk ke Box</li>
-                  <li>Volume mendukung pergerakan</li>
+                <ul className="text-xs text-slate-300 space-y-2 list-disc list-inside">
+                  <li>Lilin hijau (C2) menutup di atas High lilin merah sebelumnya (C1).</li>
+                  <li><strong>Valid Breakout:</strong> Badan lilin (body) harus menembus dan menutup di atas level SnR (bukan hanya wick sumbu).</li>
+                  <li>Menciptakan <strong>Fresh Buy Engulfing Zone</strong> tempat harga akan di-retest sebelum melanjutkan rally naik.</li>
                 </ul>
               </div>
 
-              <div className="bg-rose-950/30 border border-rose-500/40 p-3.5 rounded-xl">
-                <div className="flex items-center gap-2 text-rose-400 font-black text-xs mb-1.5">
-                  <XCircle className="w-4 h-4" />
-                  <span>TIDAK VALID (HANYA WICK)</span>
-                </div>
-                <ul className="text-[11px] text-slate-300 space-y-1 list-disc pl-4">
-                  <li>Body &lt; 50% (didominasi sumbu/ekor)</li>
-                  <li>Bentuk Doji, Spinning Top, Shooting Star</li>
-                  <li>Penolakan instan tanpa volume badan</li>
+              <div className="bg-slate-900 border border-rose-500/30 rounded-xl p-4 space-y-3">
+                <span className="text-xs font-black uppercase text-rose-400 flex items-center gap-1.5">
+                  <Flame className="w-4 h-4" />
+                  Bearish Engulfing &amp; Valid Breakout
+                </span>
+                <ul className="text-xs text-slate-300 space-y-2 list-disc list-inside">
+                  <li>Lilin merah (C2) menelan utuh badan lilin hijau sebelumnya (C1).</li>
+                  <li><strong>Valid Breakout:</strong> Body C2 menutup tegas di bawah Low C1 secara solid.</li>
+                  <li>Menciptakan <strong>Fresh Sell Engulfing Zone</strong> tempat harga akan di-retest sebelum mengalami penurunan tajam.</li>
                 </ul>
               </div>
             </div>
-          </div>
 
-          {/* Perbandingan Visual Candle Kuat vs Wick */}
-          <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col items-center">
-            <h4 className="text-xs font-bold text-slate-400 mb-4 uppercase tracking-wider">Perbandingan Body vs Wick</h4>
-            <div className="w-full max-w-sm grid grid-cols-2 gap-4 h-56 items-center">
-              {/* Strong Candle */}
-              <div className="bg-slate-900 p-4 rounded-xl border border-emerald-500/40 flex flex-col items-center">
-                <span className="text-[10px] font-bold text-emerald-400 mb-2">CANDLE KUAT (&ge; 80% Body)</span>
-                <div className="flex flex-col items-center">
-                  <div className="w-0.5 h-3 bg-emerald-400"></div>
-                  <div className="w-8 h-28 bg-emerald-500 rounded-sm flex items-center justify-center text-[10px] font-black text-slate-950">
-                    80%
-                  </div>
-                  <div className="w-0.5 h-3 bg-emerald-400"></div>
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-xs text-slate-300">
+              <h5 className="font-bold text-white mb-1">Ciri-Ciri Fresh Zone yang Belum Dimediasi:</h5>
+              <p>
+                Zona Engulfing yang masih <strong>Fresh</strong> (belum pernah disentuh kembali sejak breakout terjadi) memiliki tingkat pantulan tertinggi (akurasi &gt; 80%). Jika sudah disentuh lebih dari 2 kali, zona tersebut dianggap basi/termitigasi.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* 3. ZERO FLOATING ZONA */}
+        {activeTab === 'zero_floating' && (
+          <div className="space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center font-black text-amber-400 text-sm">
+                3
+              </span>
+              <div>
+                <h3 className="text-base font-black text-white">Zero Floating Zona (ZFZ)</h3>
+                <p className="text-xs text-slate-400">
+                  Teknik sniper entry di akar/pucuk harga dengan potensi drawdown mendekati 0 pips/poin.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+                <h4 className="text-xs font-black text-emerald-400">Zero Floating BUY (Akar Shadow)</h4>
+                <p className="text-xs text-slate-300">
+                  Entry ditempatkan tepat pada <strong>ujung shadow (wick bawah)</strong> lilin ibu / lilin Engulfing sebelum terjadinya lonjakan harga.
+                </p>
+                <div className="p-2.5 bg-emerald-950/40 border border-emerald-500/30 rounded-lg text-[11px] text-emerald-300 font-mono">
+                  Order Buy Limit / Instant saat harga menyentuh ujung akar wick. SL ditempatkan beberapa pips saja di bawah sumbu.
                 </div>
-                <span className="text-[9.5px] font-bold text-emerald-300 mt-2 bg-emerald-950 px-2 py-0.5 rounded">SINYAL VALID</span>
               </div>
 
-              {/* Weak Wick Candle */}
-              <div className="bg-slate-900 p-4 rounded-xl border border-rose-500/40 flex flex-col items-center">
-                <span className="text-[10px] font-bold text-rose-400 mb-2">WICK TIPIS (&lt; 25% Body)</span>
-                <div className="flex flex-col items-center">
-                  <div className="w-0.5 h-16 bg-slate-400"></div>
-                  <div className="w-8 h-4 bg-rose-500 rounded-sm flex items-center justify-center text-[8px] font-black text-white">
-                    20%
-                  </div>
-                  <div className="w-0.5 h-16 bg-slate-400"></div>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+                <h4 className="text-xs font-black text-rose-400">Zero Floating SELL (Pucuk Shadow)</h4>
+                <p className="text-xs text-slate-300">
+                  Entry ditempatkan tepat pada <strong>ujung shadow (wick atas)</strong> lilin puncak sebelum terjadinya dump harga.
+                </p>
+                <div className="p-2.5 bg-rose-950/40 border border-rose-500/30 rounded-lg text-[11px] text-rose-300 font-mono">
+                  Order Sell Limit / Instant saat harga menyentuh ujung pucuk wick. SL ditempatkan beberapa pips saja di atas sumbu.
                 </div>
-                <span className="text-[9.5px] font-bold text-rose-400 mt-2 bg-rose-950 px-2 py-0.5 rounded">DIABAIKAN (FALSE)</span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-indigo-950/50 border border-indigo-500/30 rounded-xl text-xs text-indigo-200">
+              <strong>Keunggulan ZFZ:</strong> Memberikan Risk-to-Reward luar biasa (1:3 hingga 1:10) karena risiko kerugian (SL) sangat kecil, sementara ruang gerak keuntungan sangat leluasa.
+            </div>
+          </div>
+        )}
+
+        {/* 4. KODE 6C.9C */}
+        {activeTab === 'kode_6c_9c' && (
+          <div className="space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center font-black text-amber-400 text-sm">
+                4
+              </span>
+              <div>
+                <h3 className="text-base font-black text-white">Kode 6C.9C (Siklus Lilin Sifir)</h3>
+                <p className="text-xs text-slate-400">
+                  Hitungan matematis siklus pembentukan candle untuk menentukan timing pembalikan dan kelanjutan tren.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-900 border border-indigo-500/40 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase text-indigo-400">KODE 6C</span>
+                  <span className="px-2 py-0.5 bg-indigo-500/20 rounded text-[10px] text-indigo-300 font-mono">
+                    Siklus 6 Lilin
+                  </span>
+                </div>
+                <h4 className="text-xs font-bold text-white">Siklus Ekspansi &amp; Retracement</h4>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Pada lilin ke-6 (6C) sejak terjadinya swing breakout, pasar biasanya menyelesaikan fase pullback retest. Jika candle ke-6 menyentuh ZFZ, inilah momentum kelanjutan tren (trend continuation) paling akurat.
+                </p>
+                <div className="text-[11px] text-indigo-300 font-mono bg-slate-950 p-2 rounded border border-indigo-900/50">
+                  Rule: 6 Candle H4 = 1 Siklus Harian Penuh.
+                </div>
+              </div>
+
+              <div className="bg-slate-900 border border-amber-500/40 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase text-amber-400">KODE 9C</span>
+                  <span className="px-2 py-0.5 bg-amber-500/20 rounded text-[10px] text-amber-300 font-mono">
+                    Siklus 9 Lilin
+                  </span>
+                </div>
+                <h4 className="text-xs font-bold text-white">Siklus Pembalikan / Turning Point</h4>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Pada lilin ke-9 (9C), momentum arah sebelumnya mengalami kejenuhan (exhaustion). Ketika lilin ke-9 berada di area SnR / Gun Number, pasar siap melakukan pembalikan arah tajam (reversal sniper).
+                </p>
+                <div className="text-[11px] text-amber-300 font-mono bg-slate-950 p-2 rounded border border-amber-900/50">
+                  Rule: Lilin ke-9 menjadi sinyal puncak/dasar gelombang.
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* TAB 3: SETUP BUY */}
-      {activeTab === 'buy_rules' && (
-        <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-lg font-black text-slate-100">SOP Lengkap Sinyal BUY (Breakout Bawah ➔ Masuk Kembali)</h3>
-              <p className="text-xs text-slate-400">Syarat lengkap eksekusi posisi Buy saat harga 5M keluar di bawah Box H4 lalu masuk kembali dengan candle kuat</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-              <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center">1</div>
-              <h4 className="text-sm font-bold text-white">Breakout Bawah Kotak H4</h4>
-              <p className="text-xs text-slate-400">Harga pada timeframe 5 Menit sempat menembus/keluar di bawah batas bawah Box H4 (Low Lilin #2).</p>
-            </div>
-
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-              <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center">2</div>
-              <h4 className="text-sm font-bold text-white">Masuk Kembali (Candle Kuat Bullish)</h4>
-              <p className="text-xs text-slate-400">Candle 5 Menit berikutnya berhasil <strong>masuk kembali ke dalam Box H4</strong> dengan badan candle Bullish tebal &ge; 50% (bukan wick tipis).</p>
-            </div>
-
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-              <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center">3</div>
-              <h4 className="text-sm font-bold text-white">Titik Entry, SL & TP</h4>
-              <p className="text-xs text-slate-400">
-                • <strong>Entry:</strong> Saat candle 5M masuk kembali ke dalam Box H4 (ditandai kotak merah)<br />
-                • <strong>SL:</strong> Di bawah titik terendah breakout (Swing Low)<br />
-                • <strong>TP 1:</strong> Garis Tengah Box H4 (Midline 50% warna hitam)<br />
-                • <strong>TP 2:</strong> Batas Atas Box H4 (High Lilin acuan H4)
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: SETUP SELL */}
-      {activeTab === 'sell_rules' && (
-        <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-rose-500/20 text-rose-400 rounded-lg">
-              <TrendingDown className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-lg font-black text-slate-100">SOP Lengkap Sinyal SELL (Breakout Atas ➔ Masuk Kembali)</h3>
-              <p className="text-xs text-slate-400">Syarat lengkap eksekusi posisi Sell saat harga 5M keluar di atas Box H4 lalu masuk kembali dengan candle kuat</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-              <div className="w-6 h-6 rounded-full bg-rose-600 text-white font-black text-xs flex items-center justify-center">1</div>
-              <h4 className="text-sm font-bold text-white">Breakout Atas Kotak H4</h4>
-              <p className="text-xs text-slate-400">Harga pada timeframe 5 Menit sempat menembus/keluar di atas batas atas Box H4 (High Lilin #2).</p>
-            </div>
-
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-              <div className="w-6 h-6 rounded-full bg-rose-600 text-white font-black text-xs flex items-center justify-center">2</div>
-              <h4 className="text-sm font-bold text-white">Masuk Kembali (Candle Kuat Bearish)</h4>
-              <p className="text-xs text-slate-400">Candle 5 Menit berikutnya berhasil <strong>masuk kembali ke dalam Box H4</strong> dengan badan candle Bearish tebal &ge; 50% (bukan wick tipis).</p>
-            </div>
-
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
-              <div className="w-6 h-6 rounded-full bg-rose-600 text-white font-black text-xs flex items-center justify-center">3</div>
-              <h4 className="text-sm font-bold text-white">Titik Entry, SL & TP</h4>
-              <p className="text-xs text-slate-400">
-                • <strong>Entry:</strong> Saat candle 5M masuk kembali ke dalam Box H4 (ditandai kotak merah)<br />
-                • <strong>SL:</strong> Di atas titik tertinggi breakout (Swing High)<br />
-                • <strong>TP 1:</strong> Garis Tengah Box H4 (Midline 50% warna hitam)<br />
-                • <strong>TP 2:</strong> Batas Bawah Box H4 (Low Lilin acuan H4)
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 5: MEMORY FLIP & PEMBALIKAN SINYAL */}
-      {activeTab === 'memory_flip' && (
-        <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-500/20 text-amber-400 rounded-lg">
-              <Zap className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-lg font-black text-slate-100">Aturan Memory: Inget Sinyal Lemah / Berpasangan (Cancel & Flip)</h3>
-              <p className="text-xs text-slate-400">Aturan khusus pengingat pembalikan arah saat candle yang masuk box tidak bertenaga atau langsung dibalas oleh candle berlawanan</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Box Skenario 1 */}
-            <div className="bg-slate-950 p-5 rounded-xl border border-amber-500/30 space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded text-xs font-black bg-amber-500 text-slate-950 uppercase">
-                  Skenario BUY ➔ Cancel & Berubah SELL
-                </span>
+        {/* 5. ZONA 1 LOT [FM] */}
+        {activeTab === 'zona_1_lot' && (
+          <div className="space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center font-black text-amber-400 text-sm">
+                5
+              </span>
+              <div>
+                <h3 className="text-base font-black text-white">Zona 1 Lot [FM] (Full Margin Confluence)</h3>
+                <p className="text-xs text-slate-400">
+                  Klasifikasi setup tingkat tertinggi di mana semua faktor konfluensi 7 pilar bersatu padu.
+                </p>
               </div>
-              <p className="text-xs text-slate-300">
-                Jika candle 5M mencoba masuk kembali ke Box H4 dari bawah untuk sinyal BUY, namun:
-              </p>
-              <ul className="text-xs text-slate-300 space-y-2 list-disc pl-4">
-                <li><strong className="text-amber-300">Candle Weak (Lemah):</strong> Badan candle &lt; 50% atau didominasi sumbu/doji.</li>
-                <li><strong className="text-amber-300">Bullish Dibarengi Bearish:</strong> Candle Bullish masuk box langsung disusul/dibalas oleh Candle Bearish penolakan.</li>
+            </div>
+
+            <div className="bg-gradient-to-br from-amber-950/60 via-slate-900 to-amber-950/40 border border-amber-500/40 rounded-xl p-5 space-y-3">
+              <h4 className="text-sm font-black text-amber-300 flex items-center gap-2">
+                <Award className="w-5 h-5 text-amber-400" />
+                <span>Kriteria Wajib Zona 1 Lot [FM]:</span>
+              </h4>
+              <ul className="text-xs text-slate-200 space-y-2">
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span><strong>1. Storyline HTF Jelas:</strong> Mengetahui arah harga dari HTF Support menuju HTF Resistance.</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span><strong>2. Zero Floating Zona (ZFZ):</strong> Harga masuk tepat ke area pucuk/akar wick fresh.</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span><strong>3. Valid Breakout &amp; Engulfing:</strong> Terkonfirmasi oleh candle body utuh, bukan wick palsu.</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span><strong>4. Kode 6C atau 9C Aktif:</strong> Waktu timing lilin bertepatan dengan siklus pantulan.</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span><strong>5. Gun Number Key Level:</strong> Berada di angka bulat psikologis sakral.</span>
+                </li>
               </ul>
-              <div className="p-3 bg-rose-950/40 rounded-lg border border-rose-500/40 text-xs text-rose-200">
-                ⚡ <strong>Keputusan Sistem:</strong> Sinyal BUY otomatis <strong>DIBATALKAN (CANCEL)</strong> dan sistem langsung mengeksekusi <strong>SELL</strong> dengan target:
-                <br />• <strong>TP 1:</strong> Garis Tengah Box H4 (Midline 50% warna hitam)
-                <br />• <strong>TP 2:</strong> Batas Bawah Box H4
-              </div>
-            </div>
-
-            {/* Box Skenario 2 */}
-            <div className="bg-slate-950 p-5 rounded-xl border border-teal-500/30 space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded text-xs font-black bg-teal-500 text-slate-950 uppercase">
-                  Skenario SELL ➔ Cancel & Berubah BUY
-                </span>
-              </div>
-              <p className="text-xs text-slate-300">
-                Jika candle 5M mencoba masuk kembali ke Box H4 dari atas untuk sinyal SELL, namun:
-              </p>
-              <ul className="text-xs text-slate-300 space-y-2 list-disc pl-4">
-                <li><strong className="text-teal-300">Candle Weak (Lemah):</strong> Badan candle &lt; 50% atau didominasi sumbu/doji.</li>
-                <li><strong className="text-teal-300">Bearish Dibarengi Bullish:</strong> Candle Bearish masuk box langsung disusul/dibalas oleh Candle Bullish penolakan.</li>
-              </ul>
-              <div className="p-3 bg-emerald-950/40 rounded-lg border border-emerald-500/40 text-xs text-emerald-200">
-                ⚡ <strong>Keputusan Sistem:</strong> Sinyal SELL otomatis <strong>DIBATALKAN (CANCEL)</strong> dan sistem langsung mengeksekusi <strong>BUY</strong> dengan target:
-                <br />• <strong>TP 1:</strong> Garis Tengah Box H4 (Midline 50% warna hitam)
-                <br />• <strong>TP 2:</strong> Batas Atas Box H4
+              <div className="p-3 bg-black/40 rounded-lg text-xs text-amber-200/90 font-mono border border-amber-500/20">
+                Setup ini dijuluki &quot;1 Lot [FM]&quot; karena trader institusional berani memaksimalkan size posisi berkat SL yang sangat rapat (&lt; 1%) dan akurasi yang terbukti tinggi.
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* TAB 6: RISK MANAGEMENT */}
-      {activeTab === 'risk_mgmt' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
-          <div className="space-y-4">
-            <h3 className="text-xl font-black text-slate-100">Prinsip Manajemen Risiko & Disiplin Eksekusi</h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Kunci utama konsistensi pada metode ini adalah <strong>Risk-to-Reward (RR) minimal 1:2</strong>. Jangan memaksakan entri jika jarak ke Stop Loss terlalu lebar dibanding potensi target.
-            </p>
+        {/* 6. STORYLINE */}
+        {activeTab === 'storyline' && (
+          <div className="space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center font-black text-amber-400 text-sm">
+                6
+              </span>
+              <div>
+                <h3 className="text-base font-black text-white">Storyline (Alur Cerita Perjalanan Harga)</h3>
+                <p className="text-xs text-slate-400">
+                  Menjawab 2 pertanyaan fundamental sebelum memasang order: Dari mana harga berasal, dan ke mana tujuan harga selanjutnya?
+                </p>
+              </div>
+            </div>
 
-            <div className="space-y-2.5">
-              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs">
-                <strong className="text-indigo-400 block mb-1">Maksimal Risiko per Posisi:</strong>
-                <span className="text-slate-300">Gunakan risiko 1% - 2% dari total modal trading Anda pada setiap setup sinyal.</span>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+                <span className="text-[11px] font-black uppercase text-indigo-400">1. Origin (Asal Muasal)</span>
+                <h4 className="text-xs font-bold text-white">Titik Pantulan Terakhir</h4>
+                <p className="text-xs text-slate-300">
+                  Apakah harga baru saja menolak Support Bullish Engulfing atau Resistance Bearish Engulfing pada TF H4 / Daily?
+                </p>
               </div>
 
-              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs">
-                <strong className="text-emerald-400 block mb-1">Partial Take Profit (TP1, TP2, TP3):</strong>
-                <span className="text-slate-300">Tutup 50% posisi saat mencapai TP1 (1:1.5 RR), lalu geser Stop Loss ke Titik Impas (BEP) untuk melindungi modal.</span>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+                <span className="text-[11px] font-black uppercase text-amber-400">2. Current Phase (Fase Terkini)</span>
+                <h4 className="text-xs font-bold text-white">Retest / Ekspansi</h4>
+                <p className="text-xs text-slate-300">
+                  Saat ini harga sedang berada di fase apa? Apakah sedang retest Zero Floating Zona pada LTF (M5/M15)?
+                </p>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+                <span className="text-[11px] font-black uppercase text-emerald-400">3. Destination (Tujuan TP)</span>
+                <h4 className="text-xs font-bold text-white">Target Take Profit</h4>
+                <p className="text-xs text-slate-300">
+                  Di mana zona Fresh Engulfing berlawanan di TF H4? Itulah terminal akhir Take Profit posisi trading Anda.
+                </p>
               </div>
             </div>
           </div>
+        )}
 
-          <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800">
-            <h4 className="text-xs font-bold text-slate-400 mb-4 uppercase tracking-wider">Matriks Keberhasilan Target</h4>
-            <div className="space-y-3 font-mono text-xs">
-              <div className="flex items-center justify-between p-2.5 rounded bg-emerald-950/30 border border-emerald-500/30">
-                <span className="text-emerald-400 font-bold">Target 1 (TP 1)</span>
-                <span className="text-white font-black">RR 1 : 1.5</span>
+        {/* 7. GUN NUMBER */}
+        {activeTab === 'gun_number' && (
+          <div className="space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <span className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center font-black text-amber-400 text-sm">
+                7
+              </span>
+              <div>
+                <h3 className="text-base font-black text-white">Gun Number (Angka Sakral &amp; Gann Levels)</h3>
+                <p className="text-xs text-slate-400">
+                  Level angka psikologis bulat (Round Psychological Numbers) dan sudut matematis Gann tempat bank dan institusi memasang limit order.
+                </p>
               </div>
-              <div className="flex items-center justify-between p-2.5 rounded bg-emerald-950/40 border border-emerald-500/40">
-                <span className="text-emerald-400 font-bold">Target 2 (TP 2)</span>
-                <span className="text-white font-black">RR 1 : 2.5</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+                <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                  <Hash className="w-4 h-4 text-amber-400" />
+                  <span>Level Angka Bulat Psikologis</span>
+                </h4>
+                <ul className="text-xs text-slate-300 space-y-2 list-disc list-inside">
+                  <li><strong>Triple Zero (.000):</strong> Level sakral utama institusi (misal XAU/USD $2,900, $3,000; BTC $95,000, $100,000).</li>
+                  <li><strong>Midpoint (.500):</strong> Titik keseimbangan paruh harga (misal XAU/USD $2,950; BTC $96,500).</li>
+                  <li><strong>Sub-levels (.200 &amp; .800):</strong> Titik akselerasi breakout momentum.</li>
+                </ul>
               </div>
-              <div className="flex items-center justify-between p-2.5 rounded bg-emerald-950/60 border border-emerald-500/60">
-                <span className="text-emerald-400 font-bold">Target 3 (TP 3)</span>
-                <span className="text-white font-black">RR 1 : 3.5</span>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+                <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                  <Target className="w-4 h-4 text-emerald-400" />
+                  <span>Kombinasi Gun Number + ZFZ</span>
+                </h4>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Jika <strong>Zero Floating Zona</strong> bertepatan langsung dengan salah satu <strong>Gun Number</strong> (misal wick retest terjadi tepat di level bulat .000 atau .500), probabilitas reaksi pantulan instan meningkat hingga 95%.
+                </p>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

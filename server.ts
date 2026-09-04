@@ -555,40 +555,54 @@ app.get('/api/binance/candles', async (req, res) => {
       return res.json({
         success: true,
         isMock: true,
-        analysis: `**[Koneksi AI Terbatas]** Kunci API Gemini tidak terdeteksi di server. Berikut adalah rekomendasi rule-based berdasarkan strategi Box H4 (Lilin Ke-2) + Breakout & Re-entry 5M Candle Kuat:\n\n1. **Area Box H4**: Lilin ke-2 pada chart 4 Jam menjadi batas kritis (Key Zone).\n2. **Logika Breakout & Re-entry 5M**: Tunggu candle 5 Menit sempat breakout keluar dari kotak H4 (ke bawah untuk Buy, ke atas untuk Sell), lalu masuk kembali ke dalam kotak H4 dengan badan candle tebal (>= 50%, bukan wick tipis).\n3. **Manajemen Risiko**: Pasang Stop Loss di luar swing level breakout dengan rasio Risk-to-Reward minimal 1:2.`
+        analysis: `**[Koneksi AI Terbatas]** Kunci API Gemini tidak terdeteksi di server. Berikut adalah rekomendasi rule-based berdasarkan 7 Pilar Strategi STF (Sifir Time Frame):\n\n1. **Sifir Time Frame (STF)**: Ikuti arah dominan HTF (Daily/H4), gunakan MTF (H1/M15) untuk struktur, dan eksekusi pada LTF (M5/M1).\n2. **Valid Breakout & Engulfing**: Pastikan body candle menembus level SnR secara utuh (bukan wick tipis).\n3. **Zero Floating Zona (ZFZ)**: Pasang posisi di pucuk/akar shadow wick fresh untuk meminimalisir floating negatif.\n4. **Kode 6C.9C**: Pantau candle ke-6 (ekspansi/pullback) atau lilin ke-9 (exhaustion/turning point).\n5. **Zona 1 Lot [FM]**: Eksekusi ukuran maksimal hanya saat seluruh 5 konfluensi terpenuhi.\n6. **Storyline**: Ketahui asal pantulan harga dan target terminal selanjutnya.\n7. **Gun Number**: Validasi dengan level psikologis sakral (.000, .500).`
       });
     }
 
     try {
-      const { symbol, h4Box, activeSignal, latest5mAnalysis, trend } = req.body;
+      const { symbol, stfHierarchy, activeSignal, engulfing, zeroFloatingZone, cycle6C9C, storyline, gunNumber } = req.body;
 
       const prompt = `
-Anda adalah AI Quantitative Analyst & Professional Trader Copilot. Tugas Anda adalah menganalisis peluang pasar berdasarkan metode strategi:
-**"Area Box Lilin H4 (Lilin Ke-2 dan Lilin Ke-3) pada Timeframe H4 + Logika Breakout Keluar Kotak H4 lalu Masuk Kembali dengan Lilin 5 Menit KUAT (Bukan Wick), dengan Target Take Profit pada Close Badan Lilin H4 ke-2 atau ke-3"**.
+Anda adalah AI Quantitative Analyst & Master Trader Institusional yang mahir dalam sistem strategi trading:
+**7 Pilar Strategi Trading STF (Sifir Time Frame)**:
+1. **Sifir Time Frame (STF)** (Kaidah hirarki fraktal HTF -> MTF -> LTF)
+2. **Valid Breakout & Engulfing (VBO)** (Body candle break utuh & fresh base zone)
+3. **Zero Floating Zona (ZFZ)** (Sniper entry di ujung pucuk/akar wick shadow)
+4. **Kode 6C.9C** (Siklus lilin ke-6 ekspansi / lilin ke-9 pembalikan jenuh)
+5. **Zona 1 Lot [FM]** (Confluence golden setup berakurasi tinggi dengan tight SL)
+6. **Storyline** (Alur cerita harga: dari mana harga datang -> fase terkini -> tujuan akhir)
+7. **Gun Number** (Level psikologis sakral .000, .500 & deret Gann matematis)
 
-Berikut adalah data teknikal saat ini:
+Berikut adalah data teknikal live saat ini:
 - **Aset (Ticker)**: ${symbol}
-- **Tren H4**: ${trend || 'Netral'}
-- **Data Box H4 (Lilin #2 & #3)**:
-  ${JSON.stringify(h4Box || {}, null, 2)}
-- **Kondisi Lilin 5M Terkini**:
-  ${JSON.stringify(latest5mAnalysis || {}, null, 2)}
-- **Sinyal Aktif Algoritma**:
-  ${activeSignal ? JSON.stringify(activeSignal, null, 2) : "Sedang memantau siklus harga breakout keluar dan masuk kembali ke Box H4 Lilin #2 / Lilin #3."}
+- **Data Sifir Time Frame**: ${JSON.stringify(stfHierarchy || {}, null, 2)}
+- **Storyline**: ${JSON.stringify(storyline || {}, null, 2)}
+- **Fresh Engulfing & VBO**: ${JSON.stringify(engulfing || {}, null, 2)}
+- **Zero Floating Zona (ZFZ)**: ${JSON.stringify(zeroFloatingZone || {}, null, 2)}
+- **Kode Siklus 6C.9C**: ${JSON.stringify(cycle6C9C || {}, null, 2)}
+- **Gun Number Key Level**: ${JSON.stringify(gunNumber || {}, null, 2)}
+- **Sinyal Terdeteksi**: ${activeSignal ? JSON.stringify(activeSignal, null, 2) : "Sedang memantau konfluensi 7 pilar."}
 
-Buatlah laporan analisis taktis yang mendalam dan mudah dipahami dalam **Bahasa Indonesia**.
+Buatlah laporan analisis taktis mendalam, tajam, dan mudah dipahami dalam **Bahasa Indonesia**.
 
 Format laporan dengan Markdown terstruktur:
-1. **📦 Evaluasi Area Box H4 (Lilin #2 & #3)**:
-   - **Box Lilin #2 (H4-2)** & **Box Lilin #3 (H4-3)**: High-Low rentang harga serta level Close Badan Lilin H4.
-   - Jelaskan signifikansi box ini sebagai zona batas referensi utama.
-2. **⚡ Analisis Breakout & Re-entry Lilin 5 Menit**: Evaluasi apakah harga 5M sempat breakout keluar dari Box H4 (bawah / atas) lalu berhasil masuk kembali dengan "Candle Kuat" (badan tebal >= 50%) atau hanya "Wick Tipis" (harus diabaikan).
-3. **🎯 Rencana Eksekusi Trading**:
-   - **Arah Posisi**: (BUY / SELL / WAIT)
-   - **Harga Entri**: Kisaran harga ideal saat 5M re-entry
-   - **Level Stop Loss**: Di luar swing breakout Box H4
-   - **Target Take Profit Utama**: Tepat pada level **Close Badan Lilin H4** (Lilin #2 atau #3 sesuai acuan setup)
-4. **🛡️ Manajemen Risiko**: Catatan disiplin trading dan pengamanan modal.
+1. **🗺️ 1 & 6. Storyline & Sifir Time Frame (STF)**:
+   - Dari mana harga memantul (Origin) dan ke mana tujuan target selanjutnya (Destination)?
+   - Bagaimana keselarasan tren HTF (H4/Daily) dengan eksekusi LTF?
+2. **⚡ 2 & 3. Valid Breakout, Engulfing & Zero Floating Zona (ZFZ)**:
+   - Evaluasi kualitas breakout lilin (apakah valid body break atau wick palsu).
+   - Penentuan level harga presisi di area Zero Floating Zona (akar/pucuk wick).
+3. **⏱️ 4 & 7. Kode 6C.9C & Validasi Gun Number**:
+   - Status candle count saat ini (apakah sedang mendekati/aktif Kode 6C atau 9C?).
+   - Konfirmasi reaksi harga di level Gun Number psikologis.
+4. **🏆 5. Klasifikasi Zona 1 Lot [FM] & Rencana Eksekusi**:
+   - Apakah setup ini layak disebut **Zona 1 Lot [FM]**? Jelaskan skor konfluensinya.
+   - **Rekomendasi Aksi**: (BUY / SELL / WAIT)
+   - **Entry Sniper**: Level ZFZ ideal
+   - **Stop Loss Ketat**: Di luar wick ZFZ
+   - **Target Take Profit 1 & Take Profit 2 (Storyline Target)**
+   - **Rasio Risk-to-Reward (RR)**
+5. **🛡️ SOP & Manajemen Risiko Institusional**: Pesan disiplin trading tanpa emosi.
 `;
 
       const response = await ai.models.generateContent({
