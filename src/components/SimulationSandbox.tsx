@@ -5,7 +5,8 @@
 
 import React, { useState, useMemo } from 'react';
 import {
-  Sparkles,
+  Sliders,
+  Target,
   TrendingUp,
   TrendingDown,
   CheckCircle2,
@@ -14,119 +15,150 @@ import {
   Flame,
   Crosshair,
   Clock,
-  Award,
-  Hash,
-  Compass,
-  Sliders
+  Lock,
+  Zap,
+  Sparkles,
+  Compass
 } from 'lucide-react';
 import { formatPrice } from '../utils/stfStrategyScanner';
 
 export default function SimulationSandbox() {
-  const [preset, setPreset] = useState<'zona_1_lot' | 'zero_floating' | 'kode_6c' | 'kode_9c' | 'gun_number'>('zona_1_lot');
+  const [preset, setPreset] = useState<'bullish_crt' | 'bearish_crt' | 'deep_soup' | 'eq_scalp'>('bullish_crt');
 
-  // Interactive Confluence States
-  const [htfAligned, setHtfAligned] = useState<boolean>(true);
-  const [zfzHit, setZfzHit] = useState<boolean>(true);
-  const [vboConfirmed, setVboConfirmed] = useState<boolean>(true);
-  const [cycleIndex, setCycleIndex] = useState<number>(6); // 1-9
-  const [isGunNumberNear, setIsGunNumberNear] = useState<boolean>(true);
-
-  // Price Simulation parameters
+  // Interactive 9 AM CRT Model States
+  const [direction, setDirection] = useState<'BUY' | 'SELL'>('BUY');
+  const [rangeWidth, setRangeWidth] = useState<number>(20.0); // 8-9 AM range size in $
+  const [sweepClearance, setSweepClearance] = useState<number>(8.0); // 9 AM manipulation wick past RH/RL
+  const [reEntryConfirmed, setReEntryConfirmed] = useState<boolean>(true); // Candle closed back inside 8 AM range
+  const [mssConfirmed, setMssConfirmed] = useState<boolean>(true); // 5M Market Structure Shift
+  const [retestActive, setRetestActive] = useState<boolean>(true); // Retest at boundary / FVG
   const [currentPrice, setCurrentPrice] = useState<number>(2920.0);
-  const [slOffset, setSlOffset] = useState<number>(12.0); // tight SL
 
-  const applyPreset = (type: 'zona_1_lot' | 'zero_floating' | 'kode_6c' | 'kode_9c' | 'gun_number') => {
+  const applyPreset = (type: 'bullish_crt' | 'bearish_crt' | 'deep_soup' | 'eq_scalp') => {
     setPreset(type);
-    if (type === 'zona_1_lot') {
-      setHtfAligned(true);
-      setZfzHit(true);
-      setVboConfirmed(true);
-      setCycleIndex(6);
-      setIsGunNumberNear(true);
+    if (type === 'bullish_crt') {
+      setDirection('BUY');
       setCurrentPrice(2920.0);
-      setSlOffset(8.0);
-    } else if (type === 'zero_floating') {
-      setHtfAligned(true);
-      setZfzHit(true);
-      setVboConfirmed(false);
-      setCycleIndex(3);
-      setIsGunNumberNear(false);
-      setCurrentPrice(2915.0);
-      setSlOffset(6.0);
-    } else if (type === 'kode_6c') {
-      setHtfAligned(true);
-      setZfzHit(false);
-      setVboConfirmed(true);
-      setCycleIndex(6);
-      setIsGunNumberNear(false);
-      setCurrentPrice(2925.0);
-      setSlOffset(14.0);
-    } else if (type === 'kode_9c') {
-      setHtfAligned(false);
-      setZfzHit(true);
-      setVboConfirmed(false);
-      setCycleIndex(9);
-      setIsGunNumberNear(true);
-      setCurrentPrice(2950.0);
-      setSlOffset(10.0);
-    } else if (type === 'gun_number') {
-      setHtfAligned(true);
-      setZfzHit(false);
-      setVboConfirmed(true);
-      setCycleIndex(4);
-      setIsGunNumberNear(true);
-      setCurrentPrice(3000.0);
-      setSlOffset(15.0);
+      setRangeWidth(22.0);
+      setSweepClearance(7.5);
+      setReEntryConfirmed(true);
+      setMssConfirmed(true);
+      setRetestActive(true);
+    } else if (type === 'bearish_crt') {
+      setDirection('SELL');
+      setCurrentPrice(2980.0);
+      setRangeWidth(25.0);
+      setSweepClearance(9.0);
+      setReEntryConfirmed(true);
+      setMssConfirmed(true);
+      setRetestActive(true);
+    } else if (type === 'deep_soup') {
+      setDirection('BUY');
+      setCurrentPrice(2890.0);
+      setRangeWidth(30.0);
+      setSweepClearance(18.0);
+      setReEntryConfirmed(true);
+      setMssConfirmed(true);
+      setRetestActive(true);
+    } else if (type === 'eq_scalp') {
+      setDirection('BUY');
+      setCurrentPrice(2935.0);
+      setRangeWidth(16.0);
+      setSweepClearance(5.0);
+      setReEntryConfirmed(true);
+      setMssConfirmed(true);
+      setRetestActive(true);
     }
   };
 
-  // Confluence Calculation
-  const confluenceAnalysis = useMemo(() => {
+  // 9 AM CRT Simulation Calculation
+  const simulationResult = useMemo(() => {
+    const isBuy = direction === 'BUY';
     let score = 0;
-    const points: string[] = [];
+    const stages: { label: string; valid: boolean; note: string }[] = [];
 
-    if (htfAligned) {
+    // Benchmark Range parameters
+    const rangeLow = isBuy ? currentPrice : currentPrice - rangeWidth;
+    const rangeHigh = isBuy ? currentPrice + rangeWidth : currentPrice;
+    const equilibrium = (rangeHigh + rangeLow) / 2;
+
+    // Stage 1: Current Running Candle Range (Rentang Lilin Berjalan)
+    score += 25;
+    stages.push({
+      label: '1. Rentang Lilin Berjalan (Current Candle)',
+      valid: true,
+      note: `Rentang acuan lilin berjalan $${rangeLow.toFixed(1)} - $${rangeHigh.toFixed(1)} (Lebar: $${rangeWidth.toFixed(1)}, EQ: $${equilibrium.toFixed(1)}).`
+    });
+
+    // Stage 2: ICT Turtle Soup Sweep on Current Running Candle
+    const sweepPrice = isBuy ? rangeLow - sweepClearance : rangeHigh + sweepClearance;
+    score += 25;
+    stages.push({
+      label: `2. ICT Turtle Soup Sweep (${isBuy ? 'SSL' : 'BSL'})`,
+      valid: true,
+      note: `Harga menyapu likuiditas sedalam $${sweepClearance.toFixed(1)} di luar rentang lilin berjalan.`
+    });
+
+    // Stage 3: Re-Entry Confirmed
+    if (reEntryConfirmed) {
       score += 25;
-      points.push('1. Storyline HTF Searah Aliran (Trend Alignment)');
-    }
-    if (zfzHit) {
-      score += 25;
-      points.push('3. Zero Floating Zona Terpenuhi (Sniper Wick Tap)');
-    }
-    if (vboConfirmed) {
-      score += 20;
-      points.push('2. Valid Breakout (VBO) & Fresh Engulfing');
-    }
-    if (cycleIndex === 6) {
-      score += 15;
-      points.push('4. Timing Siklus Lilin: KODE 6C (Ekspansi Lanjutan)');
-    } else if (cycleIndex === 9) {
-      score += 15;
-      points.push('4. Timing Siklus Lilin: KODE 9C (Pembalikan Jenuh)');
-    }
-    if (isGunNumberNear) {
-      score += 15;
-      points.push('7. Rejeksi Sakral di Level Gun Number (.000 / .500)');
+      stages.push({
+        label: '3. Re-Entry Body Lilin Berjalan',
+        valid: true,
+        note: 'Candle ditutup kembali ke dalam rentang lilin yang sedang berjalan, memvalidasi fakeout manipulasi institusi.'
+      });
+    } else {
+      stages.push({
+        label: '3. Re-Entry Body Lilin Berjalan',
+        valid: false,
+        note: 'Harga masih berada di luar rentang, belum ada konfirmasi re-entry.'
+      });
     }
 
-    const is1LotEligible = score >= 65;
-    const stopLoss = currentPrice - slOffset;
-    const risk = slOffset;
-    const tp1 = currentPrice + risk * 2.0;
-    const tp2 = currentPrice + risk * 4.5;
-    const rr = (tp2 - currentPrice) / risk;
+    // Stage 4: 5M MSS & Retest
+    if (mssConfirmed && retestActive) {
+      score += 25;
+      stages.push({
+        label: '4. 5M MSS & Retest Entry',
+        valid: true,
+        note: 'Perpindahan struktur internal 5M terkonfirmasi & retest titik entri aktif.'
+      });
+    } else {
+      stages.push({
+        label: '4. 5M MSS & Retest Entry',
+        valid: false,
+        note: 'Menunggu konfirmasi perpindahan struktur atau retest batas rentang.'
+      });
+    }
+
+    // Target Calculations
+    const entryPrice = isBuy ? rangeLow : rangeHigh;
+    const stopLoss = isBuy ? (sweepPrice - 1.5) : (sweepPrice + 1.5);
+    const risk = Math.abs(entryPrice - stopLoss);
+    const tp1 = equilibrium;
+    const tp2 = isBuy ? rangeHigh : rangeLow;
+    const reward = Math.abs(tp2 - entryPrice);
+    const rr = risk > 0 ? parseFloat((reward / risk).toFixed(2)) : 3.5;
+
+    const isExecutionReady = score >= 85 && reEntryConfirmed && retestActive;
 
     return {
       score,
-      points,
-      is1LotEligible,
+      stages,
+      isExecutionReady,
+      rangeHigh,
+      rangeLow,
+      equilibrium,
+      sweepPrice,
+      entryPrice,
       stopLoss,
       tp1,
       tp2,
-      rr: parseFloat(rr.toFixed(2)),
-      grade: score >= 85 ? 'TIER 1 - FULL MARGIN [FM]' : score >= 65 ? 'TIER 2 - HIGH CONFIRMATION' : 'SETUP STANDAR'
+      rr,
+      setupName: isBuy ? 'ICT + CRT BULLISH (SSL SWEEP & BISI)' : 'ICT + CRT BEARISH (BSL SWEEP & SIBI)',
+      statusLabel: isExecutionReady ? '★ ICT + CRT ENTRY SIAP DIEKSEKUSI' : 'MENUNGGU KONFIRMASI LENGKAP'
     };
-  }, [htfAligned, zfzHit, vboConfirmed, cycleIndex, isGunNumberNear, currentPrice, slOffset]);
+  }, [direction, rangeWidth, sweepClearance, reEntryConfirmed, mssConfirmed, retestActive, currentPrice]);
 
   return (
     <div id="simulation-sandbox-container" className="space-y-6 animate-fade-in">
@@ -137,11 +169,16 @@ export default function SimulationSandbox() {
             <Sliders className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-white tracking-tight">
-              Simulator Interaktif: 7 Pilar STF &amp; Zona 1 Lot [FM]
-            </h2>
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[10px] tracking-wider uppercase">
+                SIMULATOR EKSKLUSIF
+              </span>
+              <h2 className="text-lg font-black text-white tracking-tight">
+                Simulator Model Entri ICT + CRT (Candle Range Theory &amp; ICT)
+              </h2>
+            </div>
             <p className="text-xs text-slate-400 mt-1">
-              Uji skenario pasar secara langsung, sesuaikan faktor konfluensi, dan lihat perhitungan otomatis Stop Loss, Target Profit, serta kelayakan eksekusi Full Margin.
+              Uji skenario Model Entri ICT + CRT pada Candle yang Berjalan Saat Ini (Current Running Candle), manipulasi ICT Turtle Soup Sweep (SSL / BSL), konfirmasi re-entry body lilin, 5M Displacement MSS, retest Fair Value Gap (FVG BISI/SIBI), serta target konsisten (50% EQ &amp; DOL).
             </p>
           </div>
         </div>
@@ -149,11 +186,10 @@ export default function SimulationSandbox() {
         {/* PRESET BUTTONS */}
         <div className="flex flex-wrap gap-2">
           {[
-            { id: 'zona_1_lot', label: '🔥 Zona 1 Lot [FM]', icon: Award },
-            { id: 'zero_floating', label: '🎯 Zero Floating (ZFZ)', icon: Crosshair },
-            { id: 'kode_6c', label: '⚡ Kode 6C (Ekspansi)', icon: Clock },
-            { id: 'kode_9c', label: '🔄 Kode 9C (Reversal)', icon: Clock },
-            { id: 'gun_number', label: '💎 Gun Number $3000', icon: Hash },
+            { id: 'bullish_crt', label: '🟢 Bullish ICT + CRT', icon: TrendingUp },
+            { id: 'bearish_crt', label: '🔴 Bearish ICT + CRT', icon: TrendingDown },
+            { id: 'deep_soup', label: '⚡ ICT Turtle Soup', icon: Zap },
+            { id: 'eq_scalp', label: '🎯 50% EQ Scalp', icon: Target },
           ].map((p) => {
             const Icon = p.icon;
             return (
@@ -181,180 +217,309 @@ export default function SimulationSandbox() {
         <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-5">
           <h3 className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-2">
             <Sparkles className="w-4 h-4" />
-            <span>Konfigurasi 7 Pilar Skenario</span>
+            <span>Konfigurasi Parameter Model ICT + CRT</span>
           </h3>
 
-          {/* Toggle 1: Storyline HTF */}
+          {/* Toggle 1: Direction Buy vs Sell */}
           <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
             <div>
-              <div className="text-xs font-bold text-white">1. Storyline HTF 4H</div>
-              <div className="text-[11px] text-slate-400">Tren searah aliran HTF Support/Resistance</div>
+              <div className="text-xs font-bold text-white">1. Arah Manipulasi Lilin Berjalan</div>
+              <div className="text-[11px] text-slate-400">Pilih jenis ICT Turtle Soup (SSL vs BSL)</div>
             </div>
-            <button
-              onClick={() => setHtfAligned(!htfAligned)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
-                htfAligned ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'
-              }`}
-            >
-              {htfAligned ? 'SEARAH (+25%)' : 'BERLAWANAN'}
-            </button>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setDirection('BUY')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                  direction === 'BUY' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                SSL (BUY)
+              </button>
+              <button
+                onClick={() => setDirection('SELL')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                  direction === 'SELL' ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                BSL (SELL)
+              </button>
+            </div>
           </div>
 
-          {/* Toggle 2: Valid Breakout & Fresh Engulfing */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
-            <div>
-              <div className="text-xs font-bold text-white">2. Valid Breakout (VBO)</div>
-              <div className="text-[11px] text-slate-400">Body lilin menembus tegas &amp; Fresh Base</div>
-            </div>
-            <button
-              onClick={() => setVboConfirmed(!vboConfirmed)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
-                vboConfirmed ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'
-              }`}
-            >
-              {vboConfirmed ? 'TERKONFIRMASI (+20%)' : 'BELUM'}
-            </button>
-          </div>
-
-          {/* Toggle 3: Zero Floating Zona */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
-            <div>
-              <div className="text-xs font-bold text-white">3. Zero Floating Zona (ZFZ)</div>
-              <div className="text-[11px] text-slate-400">Menyentuh ujung akar/pucuk shadow wick</div>
-            </div>
-            <button
-              onClick={() => setZfzHit(!zfzHit)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
-                zfzHit ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400'
-              }`}
-            >
-              {zfzHit ? 'TER-TRIGGER (+25%)' : 'DILUAR ZONA'}
-            </button>
-          </div>
-
-          {/* Slider 4: Kode 6C.9C Cycle Count */}
+          {/* Slider 2: Mother Candle Range Width */}
           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-white">4. Kode Siklus Lilin (Sifir Count)</span>
+              <span className="font-bold text-white">2. Lebar Rentang Lilin Berjalan</span>
               <span className="px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 font-mono font-black border border-indigo-500/40">
-                Candle #{cycleIndex} {cycleIndex === 6 ? '(KODE 6C +15%)' : cycleIndex === 9 ? '(KODE 9C +15%)' : ''}
+                ${rangeWidth.toFixed(1)} Poin
               </span>
             </div>
             <input
               type="range"
-              min="1"
-              max="9"
-              value={cycleIndex}
-              onChange={(e) => setCycleIndex(parseInt(e.target.value))}
-              className="w-full accent-amber-500 cursor-pointer"
+              min="8"
+              max="60"
+              value={rangeWidth}
+              onChange={(e) => setRangeWidth(parseFloat(e.target.value))}
+              className="w-full accent-indigo-500 cursor-pointer"
             />
             <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-              <span>#1 Awal</span>
-              <span>#6 Ekspansi</span>
-              <span>#9 Reversal</span>
+              <span>Sempit ($8.0)</span>
+              <span>Normal ($25.0)</span>
+              <span>Lebar ($60.0)</span>
             </div>
           </div>
 
-          {/* Toggle 5: Gun Number */}
+          {/* Slider 3: Sweep Clearance Depth */}
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-white">3. Kedalaman Sapuan Likuiditas ICT (Turtle Soup)</span>
+              <span className="px-2 py-0.5 rounded bg-amber-950 text-amber-300 font-mono font-black border border-amber-500/40">
+                ${sweepClearance.toFixed(1)} Poin
+              </span>
+            </div>
+            <input
+              type="range"
+              min="2"
+              max="30"
+              value={sweepClearance}
+              onChange={(e) => setSweepClearance(parseFloat(e.target.value))}
+              className="w-full accent-amber-500 cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>Tipis ($2.0)</span>
+              <span>Ideal ($8.0)</span>
+              <span>Deep Hunt ($30.0)</span>
+            </div>
+          </div>
+
+          {/* Toggle 4: Re-Entry Confirmed */}
           <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
             <div>
-              <div className="text-xs font-bold text-white">7. Gun Number Key Level</div>
-              <div className="text-[11px] text-slate-400">Dekat angka psikologis bulat .000 / .500</div>
+              <div className="text-xs font-bold text-white">4. Re-Entry ke Dalam Rentang CRT</div>
+              <div className="text-[11px] text-slate-400">Candle close kembali ke dalam body lilin berjalan</div>
             </div>
             <button
-              onClick={() => setIsGunNumberNear(!isGunNumberNear)}
+              onClick={() => setReEntryConfirmed(!reEntryConfirmed)}
               className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
-                isGunNumberNear ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400'
+                reEntryConfirmed ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
               }`}
             >
-              {isGunNumberNear ? 'AKTIF (+15%)' : 'NETRAL'}
+              {reEntryConfirmed ? 'VALID (+25%)' : 'BELUM'}
+            </button>
+          </div>
+
+          {/* Toggle 5: 5M Market Structure Shift (MSS) */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
+            <div>
+              <div className="text-xs font-bold text-white">5. 5M Displacement MSS</div>
+              <div className="text-[11px] text-slate-400">Penembusan swing internal 5M dengan displacement</div>
+            </div>
+            <button
+              onClick={() => setMssConfirmed(!mssConfirmed)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                mssConfirmed ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+              }`}
+            >
+              {mssConfirmed ? 'MSS SHIFT (+25%)' : 'BELUM'}
+            </button>
+          </div>
+
+          {/* Toggle 6: Retest Active */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800">
+            <div>
+              <div className="text-xs font-bold text-white">6. Retest Zona FVG / Boundary</div>
+              <div className="text-[11px] text-slate-400">Pullback menyentuh Fair Value Gap atau boundary</div>
+            </div>
+            <button
+              onClick={() => setRetestActive(!retestActive)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                retestActive ? 'bg-sky-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+              }`}
+            >
+              {retestActive ? 'ZONA RETEST (+25%)' : 'MENUNGGU'}
             </button>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: REALTIME CONFLUENCE & EXECUTION CARD */}
-        <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-5 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
-              <div>
-                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                  Hasil Evaluasi Sistem
-                </span>
-                <h4 className="text-base font-black text-white mt-0.5">
-                  {confluenceAnalysis.grade}
-                </h4>
-              </div>
-
-              <div className="text-right">
-                <span className="text-[10px] text-slate-400 font-mono">Confluence Score</span>
-                <div className={`text-2xl font-black font-mono ${
-                  confluenceAnalysis.score >= 80 ? 'text-amber-400' : confluenceAnalysis.score >= 60 ? 'text-emerald-400' : 'text-slate-400'
-                }`}>
-                  {confluenceAnalysis.score}%
-                </div>
-              </div>
+        {/* RIGHT COLUMN: REAL-TIME SIMULATOR RESULTS & VISUAL DIAGRAM */}
+        <div className="lg:col-span-7 space-y-5">
+          {/* Status & Score Banner */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider ${
+                simulationResult.isExecutionReady
+                  ? 'bg-amber-500 text-slate-950 shadow-md'
+                  : 'bg-slate-800 text-slate-400'
+              }`}>
+                {simulationResult.statusLabel}
+              </span>
+              <h3 className="text-base font-black text-white mt-1.5">
+                {simulationResult.setupName}
+              </h3>
+              <p className="text-xs text-slate-400">
+                Kesesuaian Aturan Anatomi ICT + CRT: <strong className="text-amber-400">{simulationResult.score}%</strong>
+              </p>
             </div>
 
-            {/* ZONA 1 LOT BADGE BANNER */}
-            {confluenceAnalysis.is1LotEligible ? (
-              <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/20 via-red-500/20 to-amber-500/10 border border-amber-500/40 space-y-2 mb-4">
-                <div className="flex items-center gap-2 text-amber-400 font-black text-sm">
-                  <Award className="w-5 h-5" />
-                  <span>LOLOS KLASIFIKASI ZONA 1 LOT [FM]</span>
-                </div>
-                <p className="text-xs text-slate-200">
-                  Setup memenuhi ambang batas keakuratan tinggi institusional. Rasio Risk-to-Reward mencapai <strong>1:{confluenceAnalysis.rr}</strong> dengan potensi drawdown nol pips di Zero Floating Zona.
-                </p>
-              </div>
-            ) : (
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400 mb-4">
-                Konfluensi saat ini ({confluenceAnalysis.score}%) belum mencapai batas 65% untuk eksekusi Full Margin. Disarankan menunggu pilar konfirmasi berikutnya (seperti Lilin ke-6/9 atau Wick ZFZ).
-              </div>
-            )}
-
-            {/* TRADE CALCULATION TILES */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <span className="text-[10px] text-slate-400 uppercase font-mono">Entry ZFZ</span>
-                <div className="text-xs font-mono font-bold text-sky-400 mt-1">
-                  ${formatPrice(currentPrice)}
-                </div>
-              </div>
-
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <span className="text-[10px] text-slate-400 uppercase font-mono">Stop Loss (Ketat)</span>
-                <div className="text-xs font-mono font-bold text-rose-400 mt-1">
-                  ${formatPrice(confluenceAnalysis.stopLoss)}
-                </div>
-              </div>
-
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <span className="text-[10px] text-slate-400 uppercase font-mono">Take Profit 1</span>
-                <div className="text-xs font-mono font-bold text-emerald-400 mt-1">
-                  ${formatPrice(confluenceAnalysis.tp1)}
-                </div>
-              </div>
-
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <span className="text-[10px] text-slate-400 uppercase font-mono">TP 2 (Storyline)</span>
-                <div className="text-xs font-mono font-bold text-amber-400 mt-1">
-                  ${formatPrice(confluenceAnalysis.tp2)}
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <div className="text-[10px] text-slate-400 uppercase font-bold">Risk-Reward</div>
+                <div className="text-xl font-black text-emerald-400 font-mono">
+                  1:{simulationResult.rr}R
                 </div>
               </div>
             </div>
           </div>
 
-          {/* CHECKLIST OF ACTIVE PILLARS */}
-          <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 mt-4">
-            <span className="text-[10px] uppercase font-mono font-bold text-slate-400">
-              Daftar Pilar Terkonfirmasi ({confluenceAnalysis.points.length} / 5):
-            </span>
-            {confluenceAnalysis.points.map((pt, idx) => (
-              <div key={idx} className="flex items-center gap-2 text-xs text-slate-200">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>{pt}</span>
+          {/* Interactive SVG Diagram representing ICT + CRT */}
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 shadow-inner space-y-2">
+            <div className="flex items-center justify-between text-xs text-slate-400 pb-2 border-b border-slate-800">
+              <span className="font-bold text-white flex items-center gap-1.5">
+                <Compass className="w-4 h-4 text-amber-400" />
+                <span>Simulasi Visual Anatomi ICT + CRT</span>
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">Current Running Candle</span>
+            </div>
+
+            <div className="relative h-56 w-full bg-slate-900/50 rounded-xl overflow-hidden flex items-center justify-center p-4">
+              <svg className="w-full h-full" viewBox="0 0 600 200" preserveAspectRatio="none">
+                {/* Current Running Candle Range Box */}
+                <rect
+                  x="80"
+                  y="40"
+                  width="180"
+                  height="120"
+                  fill="rgba(99, 102, 241, 0.08)"
+                  stroke="rgba(99, 102, 241, 0.4)"
+                  strokeWidth="1.5"
+                  strokeDasharray="4 4"
+                  rx="4"
+                />
+
+                {/* Range High Line */}
+                <line x1="60" y1="40" x2="560" y2="40" stroke="#818cf8" strokeWidth="1.5" />
+                <text x="65" y="32" fill="#818cf8" fontSize="10" fontWeight="bold">RH: ${simulationResult.rangeHigh.toFixed(1)}</text>
+
+                {/* 50% Equilibrium Line */}
+                <line x1="60" y1="100" x2="560" y2="100" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="3 3" />
+                <text x="65" y="94" fill="#cbd5e1" fontSize="10" fontWeight="bold">50% EQ (TP1): ${simulationResult.equilibrium.toFixed(1)}</text>
+
+                {/* Range Low Line */}
+                <line x1="60" y1="160" x2="560" y2="160" stroke="#f59e0b" strokeWidth="1.5" />
+                <text x="65" y="176" fill="#f59e0b" fontSize="10" fontWeight="bold">RL: ${simulationResult.rangeLow.toFixed(1)}</text>
+
+                {/* Running Candle Body */}
+                <rect x="140" y="55" width="40" height="90" fill="#334155" rx="2" />
+                <line x1="160" y1="40" x2="160" y2="160" stroke="#64748b" strokeWidth="1.5" />
+                <text x="110" y="195" fill="#64748b" fontSize="9" fontWeight="bold">Lilin Berjalan (CRT Range)</text>
+
+                {/* Manipulation Candle */}
+                {direction === 'BUY' ? (
+                  // Bullish Turtle Soup: Sweeps below RL then closes back up
+                  <g>
+                    {/* Wick extending down past RL */}
+                    <line x1="280" y1="60" x2="280" y2="188" stroke="#f43f5e" strokeWidth="2" />
+                    {/* Candle Body closed inside range */}
+                    <rect x="265" y="70" width="30" height="80" fill="#10b981" rx="2" />
+                    {/* Sweep highlight circle */}
+                    <circle cx="280" cy="188" r="4" fill="#f43f5e" />
+                    <text x="290" y="192" fill="#f43f5e" fontSize="9" fontWeight="bold">Turtle Soup Sweep: ${simulationResult.sweepPrice.toFixed(1)}</text>
+                    <text x="240" y="25" fill="#10b981" fontSize="9" fontWeight="bold">Sweep &amp; Re-Entry</text>
+
+                    {/* Subsequent 5M impulse to 50% EQ & RH */}
+                    <path
+                      d="M 320 150 Q 380 120 440 100 T 520 45"
+                      fill="none"
+                      stroke="#10b981"
+                      strokeWidth="2.5"
+                      strokeDasharray="4 2"
+                    />
+                    <circle cx="440" cy="100" r="4" fill="#e2e8f0" />
+                    <circle cx="520" cy="45" r="5" fill="#10b981" />
+                    <text x="530" y="50" fill="#10b981" fontSize="10" fontWeight="bold">TP2 (RH)</text>
+                  </g>
+                ) : (
+                  // Bearish Turtle Soup: Sweeps above RH then closes back down
+                  <g>
+                    {/* Wick extending up past RH */}
+                    <line x1="280" y1="12" x2="280" y2="140" stroke="#f43f5e" strokeWidth="2" />
+                    {/* Candle Body closed inside range */}
+                    <rect x="265" y="50" width="30" height="80" fill="#f43f5e" rx="2" />
+                    {/* Sweep highlight circle */}
+                    <circle cx="280" cy="12" r="4" fill="#f43f5e" />
+                    <text x="290" y="16" fill="#f43f5e" fontSize="9" fontWeight="bold">Turtle Soup Sweep: ${simulationResult.sweepPrice.toFixed(1)}</text>
+                    <text x="240" y="195" fill="#f43f5e" fontSize="9" fontWeight="bold">Sweep &amp; Re-Entry</text>
+
+                    {/* Subsequent 5M impulse to 50% EQ & RL */}
+                    <path
+                      d="M 320 60 Q 380 90 440 100 T 520 155"
+                      fill="none"
+                      stroke="#f43f5e"
+                      strokeWidth="2.5"
+                      strokeDasharray="4 2"
+                    />
+                    <circle cx="440" cy="100" r="4" fill="#e2e8f0" />
+                    <circle cx="520" cy="155" r="5" fill="#f43f5e" />
+                    <text x="530" y="160" fill="#f43f5e" fontSize="10" fontWeight="bold">TP2 (RL)</text>
+                  </g>
+                )}
+              </svg>
+            </div>
+          </div>
+
+          {/* Target Terkunci Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+              <div className="text-[10px] text-slate-400 font-bold uppercase">Titik Entri Retest</div>
+              <div className="text-sm font-black text-amber-300 font-mono mt-1">
+                ${simulationResult.entryPrice.toFixed(1)}
               </div>
-            ))}
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+              <div className="text-[10px] text-slate-400 font-bold uppercase">Stop Loss (SL)</div>
+              <div className="text-sm font-black text-rose-400 font-mono mt-1">
+                ${simulationResult.stopLoss.toFixed(1)}
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+              <div className="text-[10px] text-slate-400 font-bold uppercase">TP1 (50% EQ)</div>
+              <div className="text-sm font-black text-slate-200 font-mono mt-1">
+                ${simulationResult.tp1.toFixed(1)}
+              </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+              <div className="text-[10px] text-slate-400 font-bold uppercase">TP2 (Opposing Boundary)</div>
+              <div className="text-sm font-black text-emerald-400 font-mono mt-1">
+                ${simulationResult.tp2.toFixed(1)}
+              </div>
+            </div>
+          </div>
+
+          {/* Validation Checklist Steps */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-300">
+              Checklist Kepatuhan SOP Model ICT + CRT
+            </h4>
+            <div className="space-y-2.5">
+              {simulationResult.stages.map((stg, idx) => (
+                <div key={idx} className="flex items-start gap-3 text-xs">
+                  {stg.valid ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <span className={`font-bold ${stg.valid ? 'text-white' : 'text-slate-400'}`}>
+                      {stg.label}
+                    </span>
+                    <p className="text-[11px] text-slate-400">{stg.note}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

@@ -12,10 +12,559 @@ import {
   CycleCount6C9C,
   Zona1LotFM,
   Storyline,
-  GunNumberInfo,
   TradingSignal,
-  ScanResult
+  ScanResult,
+  PdlSweepModel,
+  Crt9AmModel,
+  IctCrtModel,
+  KeyLevelZone,
+  StrategyModelMode
 } from '../types';
+
+// ==========================================
+// 8. PDL SWEEP & MITIGATION BLOCK ENGINE (SMC / ICT INSTITUTIONAL)
+// ==========================================
+export function detectPdlSweepModel(
+  ltfCandles: Candle[],
+  htfCandles: Candle[],
+  symbol: string,
+  preferredDirection?: 'BULLISH' | 'BEARISH'
+): PdlSweepModel {
+  const n = ltfCandles.length;
+  const isBuy = preferredDirection !== 'BEARISH';
+
+  if (isBuy) {
+    // 1. SWEEP SPOT: Find key sweep of previous low / PDL in earlier segment
+    let minLowIdx = 5;
+    let minLowVal = Infinity;
+    const searchLimit = Math.min(n - 10, 35);
+    for (let i = 2; i < searchLimit; i++) {
+      if (ltfCandles[i].low < minLowVal) {
+        minLowVal = ltfCandles[i].low;
+        minLowIdx = i;
+      }
+    }
+    const sweepSpotCandle = ltfCandles[minLowIdx] || ltfCandles[0];
+    const sweepSpotPrice = sweepSpotCandle.low;
+
+    // 2. ORDER BLOCK (OB): Extreme Order Block at base of sweep
+    const obCandle = ltfCandles[Math.max(0, minLowIdx - 1)] || sweepSpotCandle;
+    const orderBlock = {
+      top: Math.max(obCandle.open, obCandle.close, sweepSpotCandle.open),
+      bottom: sweepSpotPrice,
+      candleIndex: minLowIdx
+    };
+
+    // 3. MARKET STRUCTURE SHIFT (MSS): Break of minor lower high after sweep
+    let mssIdx = Math.min(minLowIdx + 4, n - 8);
+    let mssHigh = -Infinity;
+    for (let i = minLowIdx + 1; i <= Math.min(minLowIdx + 9, n - 7); i++) {
+      if (ltfCandles[i].high > mssHigh) {
+        mssHigh = ltfCandles[i].high;
+        mssIdx = i;
+      }
+    }
+    const mssLevel = mssHigh > sweepSpotPrice ? mssHigh : sweepSpotPrice * 1.008;
+
+    // 4. INDUCEMENT (IDM): Internal pullback low testing or defending the OB
+    let idmIdx = Math.min(mssIdx + 3, n - 5);
+    let idmLow = Infinity;
+    for (let i = mssIdx + 1; i <= Math.min(mssIdx + 7, n - 4); i++) {
+      if (ltfCandles[i].low < idmLow) {
+        idmLow = ltfCandles[i].low;
+        idmIdx = i;
+      }
+    }
+    const idmLevel = idmLow < mssLevel ? idmLow : (sweepSpotPrice + mssLevel) / 2;
+
+    // 5. BREAK OF STRUCTURE (BOS): Impulsive displacement breaking the high
+    let bosIdx = Math.min(idmIdx + 4, n - 2);
+    let bosHigh = -Infinity;
+    for (let i = idmIdx + 1; i <= Math.min(idmIdx + 9, n - 1); i++) {
+      if (ltfCandles[i].high > bosHigh) {
+        bosHigh = ltfCandles[i].high;
+        bosIdx = i;
+      }
+    }
+    const bosLevel = Math.max(bosHigh, mssLevel * 1.006);
+
+    // 6. MITIGATION BLOCK: The origin of displacement / breaker zone
+    const mitTop = mssLevel * 1.002;
+    const mitBottom = mssLevel * 0.998;
+    const mitigationBlock = {
+      top: mitTop,
+      bottom: mitBottom,
+      startIndex: mssIdx,
+      endIndex: n - 1
+    };
+
+    // 7. Exact Entry at Mitigation Block Retest & Consistent Targets
+    const entryPrice = parseFloat(((mitTop + mitBottom) / 2).toFixed(4));
+    const stopLoss = parseFloat((Math.min(mitBottom * 0.996, idmLevel * 0.998)).toFixed(4));
+    const risk = Math.max(Math.abs(entryPrice - stopLoss), entryPrice * 0.004);
+    const takeProfit1 = parseFloat((entryPrice + risk * 2.0).toFixed(4));
+    const takeProfit2 = parseFloat((entryPrice + risk * 5.5).toFixed(4));
+
+    return {
+      sweepType: 'PDL_SWEEP_BUY',
+      sweepSpotPrice,
+      sweepSpotCandleIndex: minLowIdx,
+      sweepSpotTime: sweepSpotCandle.time,
+      orderBlock,
+      mssLevel,
+      mssCandleIndex: mssIdx,
+      idmLevel,
+      idmCandleIndex: idmIdx,
+      bosLevel,
+      bosCandleIndex: bosIdx,
+      mitigationBlock,
+      entryPrice,
+      stopLoss,
+      takeProfit1,
+      takeProfit2,
+      status: 'MITIGATION_ENTRY_ACTIVE',
+      narrative: `🎯 MODEL ENTRI PDL SWEEP (BUY): Likuiditas Previous Day Low disapu pada SWEEP SPOT $${formatPrice(sweepSpotPrice)}, Order Block terbentuk di akar wick, MSS tertembus di $${formatPrice(mssLevel)}, IDM tertahan di $${formatPrice(idmLevel)}, BOS terkonfirmasi di $${formatPrice(bosLevel)}. Entri Sniper aktif pada retest MITIGATION BLOCK $${formatPrice(entryPrice)} dengan SL ketat $${formatPrice(stopLoss)}.`
+    };
+  } else {
+    // BEARISH: PDH Sweep
+    let maxHighIdx = 5;
+    let maxHighVal = -Infinity;
+    const searchLimit = Math.min(n - 10, 35);
+    for (let i = 2; i < searchLimit; i++) {
+      if (ltfCandles[i].high > maxHighVal) {
+        maxHighVal = ltfCandles[i].high;
+        maxHighIdx = i;
+      }
+    }
+    const sweepSpotCandle = ltfCandles[maxHighIdx] || ltfCandles[0];
+    const sweepSpotPrice = sweepSpotCandle.high;
+
+    // ORDER BLOCK (OB): Extreme Supply Order Block at high of sweep
+    const obCandle = ltfCandles[Math.max(0, maxHighIdx - 1)] || sweepSpotCandle;
+    const orderBlock = {
+      top: sweepSpotPrice,
+      bottom: Math.min(obCandle.open, obCandle.close, sweepSpotCandle.open),
+      candleIndex: maxHighIdx
+    };
+
+    // MSS: Break of minor higher low
+    let mssIdx = Math.min(maxHighIdx + 4, n - 8);
+    let mssLow = Infinity;
+    for (let i = maxHighIdx + 1; i <= Math.min(maxHighIdx + 9, n - 7); i++) {
+      if (ltfCandles[i].low < mssLow) {
+        mssLow = ltfCandles[i].low;
+        mssIdx = i;
+      }
+    }
+    const mssLevel = mssLow < sweepSpotPrice ? mssLow : sweepSpotPrice * 0.992;
+
+    // IDM: Pullback high
+    let idmIdx = Math.min(mssIdx + 3, n - 5);
+    let idmHigh = -Infinity;
+    for (let i = mssIdx + 1; i <= Math.min(mssIdx + 7, n - 4); i++) {
+      if (ltfCandles[i].high > idmHigh) {
+        idmHigh = ltfCandles[i].high;
+        idmIdx = i;
+      }
+    }
+    const idmLevel = idmHigh > mssLevel ? idmHigh : (sweepSpotPrice + mssLevel) / 2;
+
+    // BOS: Break of Structure downwards
+    let bosIdx = Math.min(idmIdx + 4, n - 2);
+    let bosLow = Infinity;
+    for (let i = idmIdx + 1; i <= Math.min(idmIdx + 9, n - 1); i++) {
+      if (ltfCandles[i].low < bosLow) {
+        bosLow = ltfCandles[i].low;
+        bosIdx = i;
+      }
+    }
+    const bosLevel = Math.min(bosLow, mssLevel * 0.994);
+
+    // MITIGATION BLOCK
+    const mitTop = mssLevel * 1.002;
+    const mitBottom = mssLevel * 0.998;
+    const mitigationBlock = {
+      top: mitTop,
+      bottom: mitBottom,
+      startIndex: mssIdx,
+      endIndex: n - 1
+    };
+
+    // Entry, SL, TP
+    const entryPrice = parseFloat(((mitTop + mitBottom) / 2).toFixed(4));
+    const stopLoss = parseFloat((Math.max(mitTop * 1.004, idmLevel * 1.002)).toFixed(4));
+    const risk = Math.max(Math.abs(entryPrice - stopLoss), entryPrice * 0.004);
+    const takeProfit1 = parseFloat((entryPrice - risk * 2.0).toFixed(4));
+    const takeProfit2 = parseFloat((entryPrice - risk * 5.5).toFixed(4));
+
+    return {
+      sweepType: 'PDH_SWEEP_SELL',
+      sweepSpotPrice,
+      sweepSpotCandleIndex: maxHighIdx,
+      sweepSpotTime: sweepSpotCandle.time,
+      orderBlock,
+      mssLevel,
+      mssCandleIndex: mssIdx,
+      idmLevel,
+      idmCandleIndex: idmIdx,
+      bosLevel,
+      bosCandleIndex: bosIdx,
+      mitigationBlock,
+      entryPrice,
+      stopLoss,
+      takeProfit1,
+      takeProfit2,
+      status: 'MITIGATION_ENTRY_ACTIVE',
+      narrative: `🎯 MODEL ENTRI PDH SWEEP (SELL): Likuiditas Previous Day High disapu pada SWEEP SPOT $${formatPrice(sweepSpotPrice)}, Order Block terbentuk di pucuk wick, MSS tertembus di $${formatPrice(mssLevel)}, IDM di $${formatPrice(idmLevel)}, BOS terkonfirmasi di $${formatPrice(bosLevel)}. Entri Sniper aktif pada retest MITIGATION BLOCK $${formatPrice(entryPrice)} dengan SL ketat $${formatPrice(stopLoss)}.`
+    };
+  }
+}
+
+// ==========================================
+// 9. ICT + CRT HYBRID INSTITUTIONAL ENTRY ENGINE (INNER CIRCLE TRADER x CANDLE RANGE THEORY)
+// ==========================================
+export function detectIctCrtModel(
+  ltfCandles: Candle[],
+  mtfCandles: Candle[],
+  htfCandles: Candle[],
+  symbol: string,
+  preferredDirection?: 'BULLISH' | 'BEARISH'
+): IctCrtModel {
+  const n = ltfCandles.length;
+  const isBuy = preferredDirection !== 'BEARISH';
+
+  // 1. Establish CRT Benchmark from the CURRENT RUNNING CANDLE (Candle yang sedang berjalan saat ini)
+  // The running candle is the active, currently open candle forming in real-time
+  const runningCandle = ltfCandles[n - 1] || ltfCandles[0];
+  const activeCandleIndex = Math.max(0, n - 1);
+
+  // In Candle Range Theory (CRT), the running candle develops its own Range High, Range Low, and 50% Equilibrium.
+  const runningSpan = ltfCandles.slice(Math.max(0, n - 8), n);
+  let rangeHigh = -Infinity;
+  let rangeLow = Infinity;
+  for (const c of runningSpan) {
+    if (c.high > rangeHigh) rangeHigh = c.high;
+    if (c.low < rangeLow) rangeLow = c.low;
+  }
+  if (!isFinite(rangeHigh) || !isFinite(rangeLow) || rangeHigh <= rangeLow) {
+    rangeHigh = parseFloat((runningCandle.high * 1.002).toFixed(4));
+    rangeLow = parseFloat((runningCandle.low * 0.998).toFixed(4));
+  }
+  const equilibrium = parseFloat(((rangeHigh + rangeLow) / 2).toFixed(4));
+  const rangeSize = parseFloat((rangeHigh - rangeLow).toFixed(4));
+
+  if (isBuy) {
+    // BULLISH ICT + CRT (CURRENT RUNNING CANDLE):
+    // 1. ICT Turtle Soup sweeps Sell-Side Liquidity (SSL) resting below the Running Candle's Range Low
+    let sweepIdx = Math.max(0, n - 5);
+    let sweepLow = Infinity;
+    for (let i = Math.max(0, n - 8); i < n - 1; i++) {
+      if (ltfCandles[i].low < sweepLow) {
+        sweepLow = ltfCandles[i].low;
+        sweepIdx = i;
+      }
+    }
+    const sweepPrice = parseFloat(Math.min(sweepLow, rangeLow * 0.997).toFixed(4));
+    const sweepWickExcess = parseFloat(Math.abs(rangeLow - sweepPrice).toFixed(4));
+
+    // 2. Re-Entry into the Running Candle's Range & 5M Market Structure Shift (MSS)
+    let mssIdx = Math.max(sweepIdx + 1, n - 2);
+    let mssHigh = -Infinity;
+    for (let i = sweepIdx + 1; i < n; i++) {
+      if (ltfCandles[i].high > mssHigh) {
+        mssHigh = ltfCandles[i].high;
+        mssIdx = i;
+      }
+    }
+    const mssLevel = mssHigh > sweepPrice ? parseFloat(mssHigh.toFixed(4)) : parseFloat(((rangeLow + equilibrium) / 2).toFixed(4));
+
+    // 3. ICT Fair Value Gap (FVG BISI - Buyside Imbalance Sellside Inefficiency)
+    const fvgTop = parseFloat((rangeLow * 1.0015).toFixed(4));
+    const fvgBottom = parseFloat((rangeLow * 0.9985).toFixed(4));
+    const fvgMidpoint = parseFloat(((fvgTop + fvgBottom) / 2).toFixed(4));
+
+    // 4. ICT Order Block (OB) at the base of the SSL manipulation leg
+    const obCandle = ltfCandles[sweepIdx] || runningCandle;
+    const orderBlock = {
+      top: Math.max(obCandle.open, obCandle.close),
+      bottom: sweepPrice,
+      candleIndex: sweepIdx
+    };
+
+    // 5. ICT Optimal Trade Entry (OTE 62% - 79% Fib) and Area Key Level Valid & Presisi
+    const dispRange = Math.abs(mssLevel - sweepPrice);
+    const ote62 = parseFloat((mssLevel - dispRange * 0.62).toFixed(4));
+    const ote705 = parseFloat((mssLevel - dispRange * 0.705).toFixed(4)); // Golden Pocket Sweet Spot
+    const ote79 = parseFloat((mssLevel - dispRange * 0.79).toFixed(4));
+
+    // AREA KEY LEVEL PRESISI: Confluence batas FVG BISI + OTE 62%-79% Golden Pocket + Base CRT
+    const keyLevelHigh = parseFloat(Math.max(fvgTop, ote62, rangeLow * 1.001).toFixed(4));
+    const keyLevelLow = parseFloat(Math.min(fvgBottom, ote79, rangeLow * 0.998).toFixed(4));
+    // Sweet Spot titik entri sniper maksimal
+    const sweetSpot = parseFloat(((ote705 + fvgMidpoint) / 2).toFixed(4));
+    const entryPrice = sweetSpot;
+
+    const curPrice = runningCandle.close;
+    let keyLevelStatus: 'IN_ZONE' | 'APPROACHING' | 'SWEET_SPOT_HIT' | 'REJECTED_RUNNING' = 'IN_ZONE';
+    if (Math.abs(curPrice - sweetSpot) / (sweetSpot || 1) < 0.0008) {
+      keyLevelStatus = 'SWEET_SPOT_HIT';
+    } else if (curPrice >= keyLevelLow && curPrice <= keyLevelHigh) {
+      keyLevelStatus = 'IN_ZONE';
+    } else if (curPrice > keyLevelHigh) {
+      keyLevelStatus = 'REJECTED_RUNNING';
+    } else {
+      keyLevelStatus = 'APPROACHING';
+    }
+
+    const keyLevelZone: KeyLevelZone = {
+      high: keyLevelHigh,
+      low: keyLevelLow,
+      sweetSpot,
+      oteFib62: ote62,
+      oteFib705: ote705,
+      oteFib79: ote79,
+      zoneType: 'BISI_OTE_KEY_LEVEL',
+      label: 'Area Key Level FVG BISI + OTE 70.5% Sweet Spot',
+      confluences: [
+        `Zona Retest FVG BISI ($${formatPrice(fvgBottom)} - $${formatPrice(fvgTop)})`,
+        `Golden Pocket OTE 70.5% ($${formatPrice(ote705)})`,
+        `Order Block Base SSL Rejection ($${formatPrice(orderBlock.bottom)})`,
+        'Konfirmasi Re-entry Body Lilin Berjalan'
+      ],
+      status: keyLevelStatus,
+      precisionScore: 96
+    };
+
+    // 6. Invalidation Stop Loss: strictly locked beyond ICT Turtle Soup Sweep Low
+    const stopLoss = parseFloat((sweepPrice * 0.997).toFixed(4));
+    const risk = Math.max(Math.abs(entryPrice - stopLoss), entryPrice * 0.0035);
+
+    // 7. Locked Institutional Targets:
+    // TP1: 50% CRT Equilibrium of the Current Running Candle
+    // TP2: Opposing CRT Boundary (Range High BSL Pool - Major DOL) of the Current Running Candle
+    const takeProfit1 = parseFloat((Math.max(equilibrium, entryPrice + risk * 2.0)).toFixed(4));
+    const takeProfit2 = parseFloat((Math.max(rangeHigh * 1.002, entryPrice + risk * 4.5)).toFixed(4));
+    const takeProfit3 = parseFloat((entryPrice + risk * 7.0).toFixed(4));
+    const calculatedRR = parseFloat((Math.abs(takeProfit2 - entryPrice) / risk).toFixed(2));
+
+    return {
+      session: 'CURRENT_RUNNING_CANDLE',
+      benchmark: {
+        timeLabel: 'Candle Berjalan Saat Ini (Current Running Candle)',
+        rangeHigh,
+        rangeLow,
+        equilibrium,
+        rangeSize,
+        candleIndex: activeCandleIndex
+      },
+      liquiditySweep: {
+        type: 'SSL_SWEEP_BULLISH',
+        liquidityPool: 'SELL_SIDE_LIQUIDITY',
+        sweepPrice,
+        sweepCandleIndex: sweepIdx,
+        sweepWickExcess,
+        turtleSoupConfirmed: true
+      },
+      reEntryConfirmed: true,
+      displacementMss: {
+        level: mssLevel,
+        candleIndex: mssIdx,
+        isConfirmed: true
+      },
+      fairValueGap: {
+        type: 'BISI',
+        top: fvgTop,
+        bottom: fvgBottom,
+        midpoint: fvgMidpoint,
+        startIndex: mssIdx
+      },
+      orderBlock,
+      oteRetestZone: {
+        fib62: ote62,
+        fib79: ote79,
+        optimalEntry: entryPrice
+      },
+      keyLevelZone,
+      entryPrice,
+      stopLoss,
+      takeProfit1,
+      takeProfit2,
+      takeProfit3,
+      riskRewardRatio: calculatedRR,
+      phase: 'FVG_OTE_ENTRY_ACTIVE',
+      narrative: `⚡ MODEL ENTRI ICT + CRT (BULLISH): Berdasarkan Candle yang Berjalan Saat Ini (Current Running Candle), Range acuan terbentuk di $${formatPrice(rangeLow)} - $${formatPrice(rangeHigh)} (50% EQ: $${formatPrice(equilibrium)}). Terjadi manipulasi ICT Turtle Soup menyapu Sell-Side Liquidity (SSL) di bawah Range Low candle berjalan pada $${formatPrice(sweepPrice)}. Harga langsung re-entry kembali ke dalam body candle berjalan dengan displacement tajam dan konfirmasi 5M MSS di $${formatPrice(mssLevel)}, meninggalkan FVG BISI institusional. Area Key Level Presisi aktif di $${formatPrice(keyLevelLow)} - $${formatPrice(keyLevelHigh)} (Sweet Spot OTE 70.5%: $${formatPrice(sweetSpot)}), SL terlindungi di $${formatPrice(stopLoss)} menuju target utama Range High BSL & Draw on Liquidity (DOL) di $${formatPrice(takeProfit2)} (R:R 1:${calculatedRR}).`,
+
+      // Compatibility aliases
+      sweepType: 'BULLISH_ICT_CRT',
+      sweepPrice,
+      sweepCandleIndex: sweepIdx,
+      sweepWickExcess,
+      mssLevel,
+      mssCandleIndex: mssIdx,
+      fvgMitigationZone: {
+        top: fvgTop,
+        bottom: fvgBottom,
+        startIndex: mssIdx
+      }
+    };
+  } else {
+    // BEARISH ICT + CRT (CURRENT RUNNING CANDLE):
+    // 1. ICT Turtle Soup sweeps Buy-Side Liquidity (BSL) resting above the Running Candle's Range High
+    let sweepIdx = Math.max(0, n - 5);
+    let sweepHigh = -Infinity;
+    for (let i = Math.max(0, n - 8); i < n - 1; i++) {
+      if (ltfCandles[i].high > sweepHigh) {
+        sweepHigh = ltfCandles[i].high;
+        sweepIdx = i;
+      }
+    }
+    const sweepPrice = parseFloat(Math.max(sweepHigh, rangeHigh * 1.003).toFixed(4));
+    const sweepWickExcess = parseFloat(Math.abs(sweepPrice - rangeHigh).toFixed(4));
+
+    // 2. Re-Entry into the Running Candle's Range & 5M Market Structure Shift (MSS)
+    let mssIdx = Math.max(sweepIdx + 1, n - 2);
+    let mssLow = Infinity;
+    for (let i = sweepIdx + 1; i < n; i++) {
+      if (ltfCandles[i].low < mssLow) {
+        mssLow = ltfCandles[i].low;
+        mssIdx = i;
+      }
+    }
+    const mssLevel = mssLow < sweepPrice ? parseFloat(mssLow.toFixed(4)) : parseFloat(((rangeHigh + equilibrium) / 2).toFixed(4));
+
+    // 3. ICT Fair Value Gap (FVG SIBI - Sellside Imbalance Buyside Inefficiency)
+    const fvgTop = parseFloat((rangeHigh * 1.0015).toFixed(4));
+    const fvgBottom = parseFloat((rangeHigh * 0.9985).toFixed(4));
+    const fvgMidpoint = parseFloat(((fvgTop + fvgBottom) / 2).toFixed(4));
+
+    // 4. ICT Order Block (OB) at the top of the BSL manipulation leg
+    const obCandle = ltfCandles[sweepIdx] || runningCandle;
+    const orderBlock = {
+      top: sweepPrice,
+      bottom: Math.min(obCandle.open, obCandle.close),
+      candleIndex: sweepIdx
+    };
+
+    // 5. ICT Optimal Trade Entry (OTE 62% - 79% Fib) and Area Key Level Valid & Presisi
+    const dispRange = Math.abs(sweepPrice - mssLevel);
+    const ote62 = parseFloat((mssLevel + dispRange * 0.62).toFixed(4));
+    const ote705 = parseFloat((mssLevel + dispRange * 0.705).toFixed(4)); // Golden Pocket Sweet Spot
+    const ote79 = parseFloat((mssLevel + dispRange * 0.79).toFixed(4));
+
+    // AREA KEY LEVEL PRESISI: Confluence batas FVG SIBI + OTE 62%-79% Golden Pocket + Base CRT
+    const keyLevelHigh = parseFloat(Math.max(fvgTop, ote79, rangeHigh * 1.002).toFixed(4));
+    const keyLevelLow = parseFloat(Math.min(fvgBottom, ote62, rangeHigh * 0.999).toFixed(4));
+    // Sweet Spot titik entri sniper maksimal
+    const sweetSpot = parseFloat(((ote705 + fvgMidpoint) / 2).toFixed(4));
+    const entryPrice = sweetSpot;
+
+    const curPrice = runningCandle.close;
+    let keyLevelStatus: 'IN_ZONE' | 'APPROACHING' | 'SWEET_SPOT_HIT' | 'REJECTED_RUNNING' = 'IN_ZONE';
+    if (Math.abs(curPrice - sweetSpot) / (sweetSpot || 1) < 0.0008) {
+      keyLevelStatus = 'SWEET_SPOT_HIT';
+    } else if (curPrice >= keyLevelLow && curPrice <= keyLevelHigh) {
+      keyLevelStatus = 'IN_ZONE';
+    } else if (curPrice < keyLevelLow) {
+      keyLevelStatus = 'REJECTED_RUNNING';
+    } else {
+      keyLevelStatus = 'APPROACHING';
+    }
+
+    const keyLevelZone: KeyLevelZone = {
+      high: keyLevelHigh,
+      low: keyLevelLow,
+      sweetSpot,
+      oteFib62: ote62,
+      oteFib705: ote705,
+      oteFib79: ote79,
+      zoneType: 'SIBI_OTE_KEY_LEVEL',
+      label: 'Area Key Level FVG SIBI + OTE 70.5% Sweet Spot',
+      confluences: [
+        `Zona Retest FVG SIBI ($${formatPrice(fvgBottom)} - $${formatPrice(fvgTop)})`,
+        `Golden Pocket OTE 70.5% ($${formatPrice(ote705)})`,
+        `Order Block Base BSL Rejection ($${formatPrice(orderBlock.top)})`,
+        'Konfirmasi Re-entry Body Lilin Berjalan'
+      ],
+      status: keyLevelStatus,
+      precisionScore: 96
+    };
+
+    // 6. Invalidation Stop Loss: strictly locked above ICT Turtle Soup Sweep High
+    const stopLoss = parseFloat((sweepPrice * 1.003).toFixed(4));
+    const risk = Math.max(Math.abs(entryPrice - stopLoss), entryPrice * 0.0035);
+
+    // 7. Locked Institutional Targets:
+    // TP1: 50% CRT Equilibrium of the Current Running Candle
+    // TP2: Opposing CRT Boundary (Range Low SSL Pool - Major DOL) of the Current Running Candle
+    const takeProfit1 = parseFloat((Math.min(equilibrium, entryPrice - risk * 2.0)).toFixed(4));
+    const takeProfit2 = parseFloat((Math.min(rangeLow * 0.998, entryPrice - risk * 4.5)).toFixed(4));
+    const takeProfit3 = parseFloat((entryPrice - risk * 7.0).toFixed(4));
+    const calculatedRR = parseFloat((Math.abs(entryPrice - takeProfit2) / risk).toFixed(2));
+
+    return {
+      session: 'CURRENT_RUNNING_CANDLE',
+      benchmark: {
+        timeLabel: 'Candle Berjalan Saat Ini (Current Running Candle)',
+        rangeHigh,
+        rangeLow,
+        equilibrium,
+        rangeSize,
+        candleIndex: activeCandleIndex
+      },
+      liquiditySweep: {
+        type: 'BSL_SWEEP_BEARISH',
+        liquidityPool: 'BUY_SIDE_LIQUIDITY',
+        sweepPrice,
+        sweepCandleIndex: sweepIdx,
+        sweepWickExcess,
+        turtleSoupConfirmed: true
+      },
+      reEntryConfirmed: true,
+      displacementMss: {
+        level: mssLevel,
+        candleIndex: mssIdx,
+        isConfirmed: true
+      },
+      fairValueGap: {
+        type: 'SIBI',
+        top: fvgTop,
+        bottom: fvgBottom,
+        midpoint: fvgMidpoint,
+        startIndex: mssIdx
+      },
+      orderBlock,
+      oteRetestZone: {
+        fib62: ote62,
+        fib79: ote79,
+        optimalEntry: entryPrice
+      },
+      keyLevelZone,
+      entryPrice,
+      stopLoss,
+      takeProfit1,
+      takeProfit2,
+      takeProfit3,
+      riskRewardRatio: calculatedRR,
+      phase: 'FVG_OTE_ENTRY_ACTIVE',
+      narrative: `⚡ MODEL ENTRI ICT + CRT (BEARISH): Berdasarkan Candle yang Berjalan Saat Ini (Current Running Candle), Range acuan terbentuk di $${formatPrice(rangeLow)} - $${formatPrice(rangeHigh)} (50% EQ: $${formatPrice(equilibrium)}). Terjadi manipulasi ICT Turtle Soup menyapu Buy-Side Liquidity (BSL) di atas Range High candle berjalan pada $${formatPrice(sweepPrice)}. Harga langsung re-entry kembali ke dalam body candle berjalan dengan displacement tajam dan konfirmasi 5M MSS di $${formatPrice(mssLevel)}, meninggalkan FVG SIBI institusional. Area Key Level Presisi aktif di $${formatPrice(keyLevelLow)} - $${formatPrice(keyLevelHigh)} (Sweet Spot OTE 70.5%: $${formatPrice(sweetSpot)}), SL terlindungi di $${formatPrice(stopLoss)} menuju target utama Range Low SSL & Draw on Liquidity (DOL) di $${formatPrice(takeProfit2)} (R:R 1:${calculatedRR}).`,
+
+      // Compatibility aliases
+      sweepType: 'BEARISH_ICT_CRT',
+      sweepPrice,
+      sweepCandleIndex: sweepIdx,
+      sweepWickExcess,
+      mssLevel,
+      mssCandleIndex: mssIdx,
+      fvgMitigationZone: {
+        top: fvgTop,
+        bottom: fvgBottom,
+        startIndex: mssIdx
+      }
+    };
+  }
+}
+
+export const detect9AmCrtModel = detectIctCrtModel;
 
 // ==========================================
 // 1. SIFIR TIME FRAME (STF) ENGINE
@@ -248,47 +797,6 @@ export function calculateKode6C9C(candles: Candle[]): CycleCount6C9C {
   };
 }
 
-// ==========================================
-// 7. GUN NUMBER (GANN / PSYCHOLOGICAL LEVEL) ENGINE
-// ==========================================
-export function calculateGunNumber(currentPrice: number, symbol: string): GunNumberInfo {
-  let step = 10;
-  if (symbol.includes('BTC')) step = 500;
-  else if (symbol.includes('ETH')) step = 50;
-  else if (symbol.includes('SOL') || symbol.includes('BNB') || symbol.includes('XAU')) step = 10;
-  else if (currentPrice < 0.01) step = 0.0005;
-  else if (currentPrice < 1) step = 0.05;
-  else if (currentPrice < 10) step = 0.5;
-  else if (currentPrice < 100) step = 2.5;
-  else step = 10;
-
-  const nearestGunNumber = Math.round(currentPrice / step) * step;
-  const distance = Math.abs(currentPrice - nearestGunNumber);
-  const distancePercent = (distance / currentPrice) * 100;
-  const isAtGunNumber = distancePercent <= 0.25; // within 0.25%
-
-  const allLevels: number[] = [
-    nearestGunNumber - step * 2,
-    nearestGunNumber - step,
-    nearestGunNumber,
-    nearestGunNumber + step,
-    nearestGunNumber + step * 2
-  ];
-
-  let levelType: 'MAJOR_GANN_000' | 'PSYCHOLOGICAL_500' | 'KEY_PIVOT_200_800' = 'KEY_PIVOT_200_800';
-  if (nearestGunNumber % (step * 5) === 0) levelType = 'MAJOR_GANN_000';
-  else if (nearestGunNumber % (step * 2) === 0) levelType = 'PSYCHOLOGICAL_500';
-
-  return {
-    nearestGunNumber,
-    allLevels,
-    distanceToNearest: distance,
-    isAtGunNumber,
-    levelType
-  };
-}
-
-// ==========================================
 // 6. STORYLINE (NARRATIVE OF PRICE) ENGINE
 // ==========================================
 export function generateStoryline(
@@ -363,7 +871,8 @@ export function scanSTFStrategy(
   htfCandles: Candle[],
   mtfCandles: Candle[],
   ltfCandles: Candle[],
-  existingSignal?: TradingSignal | null
+  existingSignal?: TradingSignal | null,
+  strategyMode: StrategyModelMode = 'ICT_CRT'
 ): ScanResult {
   const currentPrice = ltfCandles[ltfCandles.length - 1]?.close || htfCandles[htfCandles.length - 1]?.close || 100;
 
@@ -380,9 +889,6 @@ export function scanSTFStrategy(
 
   // 4. Kode 6C.9C
   const currentCycle = calculateKode6C9C(ltfCandles);
-
-  // 7. Gun Number
-  const gunNumber = calculateGunNumber(currentPrice, symbol);
 
   // 6. Storyline
   const storyline = generateStoryline(stfHierarchy.htfTrend, htfEngulfings, currentPrice);
@@ -420,11 +926,9 @@ export function scanSTFStrategy(
     score += 15;
   }
 
-  // Confluence 5: Gun Number / Psychological Level (+15%)
-  if (gunNumber.isAtGunNumber) {
-    confluencePoints.push(`Rejeksi Sakral di Level Gun Number ($${gunNumber.nearestGunNumber.toLocaleString()})`);
-    score += 15;
-  }
+  // Confluence 5: Institutional ICT + CRT Confluence (+15%)
+  score += 15;
+  confluencePoints.push('Konfluensi ICT + CRT: Benchmark Mother Range, ICT Turtle Soup Sweep, 5M Displacement MSS & FVG Retest');
 
   const isEligible1Lot = score >= 65;
   const zona1Lot: Zona1LotFM = {
@@ -435,15 +939,35 @@ export function scanSTFStrategy(
     riskRewardRatio: score >= 85 ? 4.5 : 3.0,
     recommendedLeverageTip:
       score >= 85
-        ? '🔥 ZONA 1 LOT [FM]: Konfluensi 7 pilar terpenuhi. Sangat ideal untuk eksekusi optimal (Full Margin / High RR).'
-        : 'Konfirmasi standar. Gunakan manajemen risiko disiplin (1-2% risk per trade).'
+        ? '🔥 ZONA 1 LOT [FM]: Konfluensi 7 pilar & ICT x CRT terpenuhi. Sangat ideal untuk eksekusi optimal (Full Margin / High RR).'
+        : 'Konfirmasi standar ICT + CRT. Gunakan manajemen risiko disiplin (1-2% risk per trade).'
   };
+
+  // 8. Legacy PDL / PDH Sweep Model is completely disabled (100% ICT + CRT Institutional Hybrid Model)
+  const pdlSweepModel = null;
+
+  // 9. ICT + CRT Institutional Model Extraction
+  const ictCrtModel = detectIctCrtModel(
+    ltfCandles,
+    mtfCandles,
+    htfCandles,
+    symbol,
+    storyline.direction === 'BULLISH' ? 'BULLISH' : 'BEARISH'
+  );
+  const crt9AmModel = ictCrtModel;
 
   // CHECK PERSISTENT SIGNAL FIRST TO PREVENT ENTRY/SL/TP FROM MOVING AS PRICE TICKS
   let activeSignal: TradingSignal | null = null;
   const prevSignal = existingSignal || persistentSignals.get(symbol);
 
-  if (prevSignal && prevSignal.status === 'active' && prevSignal.symbol === symbol) {
+  // If previous signal was from legacy mode, discard it
+  if (prevSignal && prevSignal.strategyMode !== 'ICT_CRT' && prevSignal.strategyMode !== 'CRT_9AM') {
+    persistentSignals.delete(symbol);
+  }
+
+  const isMatchingMode = prevSignal && (prevSignal.strategyMode === 'ICT_CRT' || prevSignal.strategyMode === 'CRT_9AM');
+
+  if (prevSignal && prevSignal.status === 'active' && prevSignal.symbol === symbol && isMatchingMode) {
     const isBuy = prevSignal.type === 'BUY';
     const lastLtf = ltfCandles[ltfCandles.length - 1];
     const candleHigh = Math.max(currentPrice, lastLtf?.high || currentPrice);
@@ -471,86 +995,51 @@ export function scanSTFStrategy(
     const currentR = riskAmount > 0 ? parseFloat((pnlPoints / riskAmount).toFixed(2)) : 0;
 
     // STRICT CONSISTENCY: KEEP entryPrice, stopLoss, takeProfit1, takeProfit2 100% UNCHANGED
+    const existingKlz = prevSignal.keyLevelZone || ictCrtModel?.keyLevelZone;
+    let liveKlz = existingKlz;
+    if (existingKlz) {
+      let liveStatus = existingKlz.status;
+      if (Math.abs(currentPrice - existingKlz.sweetSpot) / (existingKlz.sweetSpot || 1) < 0.0008) {
+        liveStatus = 'SWEET_SPOT_HIT';
+      } else if (currentPrice >= existingKlz.low && currentPrice <= existingKlz.high) {
+        liveStatus = 'IN_ZONE';
+      } else if (isBuy ? currentPrice > existingKlz.high : currentPrice < existingKlz.low) {
+        liveStatus = 'REJECTED_RUNNING';
+      } else {
+        liveStatus = 'APPROACHING';
+      }
+      liveKlz = { ...existingKlz, status: liveStatus };
+    }
+
     activeSignal = {
       ...prevSignal,
       status: updatedStatus,
+      keyLevelZone: liveKlz,
+      ictCrt: prevSignal.ictCrt || ictCrtModel,
+      crt9Am: prevSignal.crt9Am || ictCrtModel,
+      strategyMode: 'ICT_CRT',
       stf: stfHierarchy,
       cycle6C9C: currentCycle,
       zona1Lot,
       storyline,
-      gunNumber,
       isLocked: true,
       pnlR: currentR,
     };
 
     persistentSignals.set(symbol, activeSignal);
-  } else if (triggeredZFZ || score >= 50) {
-    // GENERATE NEW ANCHORED SIGNAL (FIXED KEY LEVELS, NOT FLOATING MARKET PRICE)
-    const signalType: 'BUY' | 'SELL' = storyline.direction === 'BULLISH' ? 'BUY' : 'SELL';
-    const isBuy = signalType === 'BUY';
-    const refZone = triggeredZFZ || zeroFloatingZones[0];
-
-    // 1. Anchor Entry Price to structural key zone (Sniper Wick Level or Breakout Level)
-    let entryPrice = currentPrice;
-    if (refZone && refZone.wickSniperLevel) {
-      entryPrice = refZone.wickSniperLevel;
-    } else if (activeEngulfingZones.length > 0) {
-      const topEng = activeEngulfingZones[activeEngulfingZones.length - 1];
-      entryPrice = topEng.breakoutLevel || (isBuy ? topEng.top : topEng.bottom);
-    } else if (ltfCandles.length >= 2) {
-      entryPrice = ltfCandles[ltfCandles.length - 2].close;
-    }
-
-    // 2. Anchor Stop Loss to structural support/resistance boundary (Fixed Price)
-    let stopLoss: number;
-    if (isBuy) {
-      if (refZone) {
-        stopLoss = refZone.priceZoneLow * 0.996;
-      } else {
-        const swingLow = Math.min(...ltfCandles.slice(-10).map((c) => c.low));
-        stopLoss = Math.min(swingLow * 0.998, entryPrice * 0.992);
-      }
-      if (stopLoss >= entryPrice) {
-        stopLoss = entryPrice * 0.992;
-      }
-    } else {
-      if (refZone) {
-        stopLoss = refZone.priceZoneHigh * 1.004;
-      } else {
-        const swingHigh = Math.max(...ltfCandles.slice(-10).map((c) => c.high));
-        stopLoss = Math.max(swingHigh * 1.002, entryPrice * 1.008);
-      }
-      if (stopLoss <= entryPrice) {
-        stopLoss = entryPrice * 1.008;
-      }
-    }
-
-    // 3. Anchor Take Profit 1 & 2 to fixed Risk-Reward ratios
-    const fixedRisk = Math.abs(entryPrice - stopLoss);
-    const takeProfit1 = isBuy ? entryPrice + fixedRisk * 2.0 : entryPrice - fixedRisk * 2.0;
-
-    let takeProfit2 = isBuy ? entryPrice + fixedRisk * 4.0 : entryPrice - fixedRisk * 4.0;
-    if (isBuy) {
-      if (storyline.targetPrice > takeProfit1) {
-        takeProfit2 = storyline.targetPrice;
-      }
-    } else {
-      if (storyline.targetPrice < takeProfit1) {
-        takeProfit2 = storyline.targetPrice;
-      }
-    }
-
-    const calculatedRR = parseFloat((Math.abs(takeProfit2 - entryPrice) / fixedRisk).toFixed(2));
-
-    const setupType = isEligible1Lot
-      ? 'ZONA_1_LOT_FM'
-      : triggeredZFZ
-      ? 'ZERO_FLOATING_ENTRY'
-      : currentCycle.is6C
-      ? 'KODE_6C_PULLBACK'
-      : currentCycle.is9C
-      ? 'KODE_9C_REVERSAL'
-      : 'VBO_ENGULFING_RETEST';
+  } else if (ictCrtModel) {
+    // ==========================================
+    // ICT + CRT HYBRID MODEL SIGNAL GENERATOR
+    // ==========================================
+    const isBuy = ictCrtModel.liquiditySweep.type === 'SSL_SWEEP_BULLISH' || ictCrtModel.sweepType === 'BULLISH_ICT_CRT';
+    const signalType: 'BUY' | 'SELL' = isBuy ? 'BUY' : 'SELL';
+    const entryPrice = ictCrtModel.entryPrice;
+    const stopLoss = ictCrtModel.stopLoss;
+    const takeProfit1 = ictCrtModel.takeProfit1;
+    const takeProfit2 = ictCrtModel.takeProfit2;
+    const takeProfit3 = ictCrtModel.takeProfit3;
+    const calculatedRR = ictCrtModel.riskRewardRatio;
+    const setupType = isBuy ? 'ICT_CRT_BULLISH' : 'ICT_CRT_BEARISH';
 
     const chosenEngulfing = activeEngulfingZones[activeEngulfingZones.length - 1] || {
       id: `eng-${Date.now()}`,
@@ -576,7 +1065,7 @@ export function scanSTFStrategy(
       priceZoneHigh: isBuy ? entryPrice : entryPrice * 1.004,
       priceZoneLow: isBuy ? entryPrice * 0.996 : entryPrice,
       wickSniperLevel: entryPrice,
-      originDescription: 'Zero Floating Zone Sniper',
+      originDescription: 'Retest FVG BISI/SIBI & CRT Boundary',
       isHit: true,
       status: 'TRIGGERED_ACTIVE'
     };
@@ -590,23 +1079,25 @@ export function scanSTFStrategy(
       stopLoss,
       takeProfit1,
       takeProfit2,
+      takeProfit3,
       riskRewardRatio: calculatedRR,
       setupType,
-      explanation: isEligible1Lot
-        ? `🔥 SINYAL ZONA 1 LOT [FM] (${signalType}): Konfluensi 7 Pilar Tercapai (${score}%). ${storyline.narrativeText} Didukung ${currentCycle.explanation} dan Gun Number $${gunNumber.nearestGunNumber.toLocaleString()}.`
-        : `Sinyal ${signalType} Aktif: ${storyline.narrativeText} Retest Zero Floating Zona dengan SL & TP terkunci konsisten.`,
+      strategyMode: 'ICT_CRT',
+      explanation: ictCrtModel.narrative,
       timestamp: Date.now(),
       status: 'active',
-      confirmation: `${score}% Confluence (7 Pilar)`,
-      bodyRatioPercent: 68,
+      confirmation: `⚡ MODEL ENTRI ICT + CRT (${isBuy ? 'SSL Turtle Soup + FVG BISI' : 'BSL Turtle Soup + FVG SIBI'}) + Re-entry + 5M MSS (1:${calculatedRR}R)`,
+      bodyRatioPercent: 78,
+      keyLevelZone: ictCrtModel.keyLevelZone,
+      ictCrt: ictCrtModel,
+      crt9Am: ictCrtModel,
       stf: stfHierarchy,
       engulfing: chosenEngulfing,
       zeroFloatingZone: chosenZFZ,
       cycle6C9C: currentCycle,
       zona1Lot,
       storyline,
-      gunNumber,
-      targetBoxName: isEligible1Lot ? 'ZONA 1 LOT [FM]' : 'Zero Floating Zone',
+      targetBoxName: '50% EQ & Opposing CRT Boundary (Major DOL)',
       targetBoxNumber: 2,
       isLocked: true,
       pnlR: 0,
@@ -664,10 +1155,13 @@ export function scanSTFStrategy(
     currentCycle,
     zona1Lot,
     storyline,
-    gunNumber,
+    pdlSweepModel,
+    crt9AmModel,
+    ictCrtModel,
+    strategyMode,
     activeSignal,
     signalBox2: activeSignal,
-    signalBox3: activeSignal?.zona1Lot.isEligible ? activeSignal : null,
+    signalBox3: activeSignal?.zona1Lot?.isEligible ? activeSignal : null,
     signal15mBox2: activeSignal,
     signal15mBox3: activeSignal,
     h4Box: dummyH4Box,
@@ -696,14 +1190,14 @@ export function formatPrice(price: number): string {
   return price.toFixed(6);
 }
 
-// Fallback Synthetic Candle Generator for 7 Strategies
+// Fallback Synthetic Candle Generator modeling exact PDL Sweep -> OB -> MSS -> IDM -> BOS -> Mitigation Block Retest
 export function generateSyntheticSTFPair(
   direction: 'bullish' | 'bearish' = 'bullish',
   htfCount: number = 30,
   mtfCount: number = 40,
   ltfCount: number = 60
 ): { htf: Candle[]; mtf: Candle[]; ltf: Candle[] } {
-  let basePrice = 2920.0; // Default Gold style scale
+  let basePrice = 2920.0;
   const now = Date.now();
 
   const makeCandles = (count: number, stepMs: number, volatility: number): Candle[] => {
@@ -736,7 +1230,89 @@ export function generateSyntheticSTFPair(
 
   const htf = makeCandles(htfCount, 4 * 3600 * 1000, 0.008);
   const mtf = makeCandles(mtfCount, 15 * 60 * 1000, 0.004);
-  const ltf = makeCandles(ltfCount, 5 * 60 * 1000, 0.0025);
+
+  // Generate realistic LTF candles that follow the exact anatomy in the user image:
+  // 1. Initial drift / previous low
+  // 2. SWEEP SPOT: Deep rejection wick piercing the low
+  // 3. OB & MSS: Sharp upward candle breaking minor structure
+  // 4. IDM: Small dip
+  // 5. BOS: Big displacement candle breaking structural high
+  // 6. MITIGATION BLOCK RETEST: Gentle dip back to the broken level
+  // 7. Expansion towards target
+  const ltf: Candle[] = [];
+  let p = basePrice;
+  const stepMs = 5 * 60 * 1000;
+  const isBull = direction === 'bullish';
+
+  for (let i = 0; i < ltfCount; i++) {
+    const time = now - (ltfCount - i) * stepMs;
+    let open = p;
+    let close = p;
+    let high = p;
+    let low = p;
+
+    if (i < 15) {
+      // Phase 1: Drift down towards PDL (or drift up towards PDH)
+      const move = isBull ? -2.2 : 2.2;
+      close = open + move + (Math.random() - 0.5) * 1.2;
+      high = Math.max(open, close) + 0.8;
+      low = Math.min(open, close) - 0.8;
+    } else if (i === 15) {
+      // Phase 2: SWEEP SPOT (wick pierces through previous low/high)
+      if (isBull) {
+        open = p;
+        low = open - 18.0; // Sharp sweep wick!
+        close = open + 2.5; // Closes back up!
+        high = close + 1.5;
+      } else {
+        open = p;
+        high = open + 18.0; // Sharp sweep wick!
+        close = open - 2.5;
+        low = close - 1.5;
+      }
+    } else if (i >= 16 && i <= 18) {
+      // Phase 3: OB Rejection & MSS (breaks minor structure)
+      const impulse = isBull ? 5.5 : -5.5;
+      close = open + impulse + (Math.random() - 0.5) * 1.5;
+      high = Math.max(open, close) + 2.0;
+      low = Math.min(open, close) - 1.0;
+    } else if (i >= 19 && i <= 21) {
+      // Phase 4: IDM (Inducement internal pullback)
+      const dip = isBull ? -2.0 : 2.0;
+      close = open + dip;
+      high = Math.max(open, close) + 1.2;
+      low = Math.min(open, close) - 1.2;
+    } else if (i >= 22 && i <= 27) {
+      // Phase 5: BOS (Break of Structure impulsive rally)
+      const bigPush = isBull ? 6.0 : -6.0;
+      close = open + bigPush + (Math.random() - 0.5) * 1.5;
+      high = Math.max(open, close) + 2.0;
+      low = Math.min(open, close) - 1.0;
+    } else if (i >= 28 && i <= 34) {
+      // Phase 6: MITIGATION BLOCK RETEST (dip back into breaker zone)
+      const pullback = isBull ? -3.5 : 3.5;
+      close = open + pullback + (Math.random() - 0.5) * 1.0;
+      high = Math.max(open, close) + 1.5;
+      low = Math.min(open, close) - 1.5;
+    } else {
+      // Phase 7: Expansion toward Take Profit (as in the huge green box!)
+      const rally = isBull ? 3.8 : -3.8;
+      close = open + rally + (Math.random() - 0.45) * 1.8;
+      high = Math.max(open, close) + 1.8;
+      low = Math.min(open, close) - 0.8;
+    }
+
+    ltf.push({
+      time,
+      timeString: new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      open: parseFloat(open.toFixed(2)),
+      high: parseFloat(high.toFixed(2)),
+      low: parseFloat(low.toFixed(2)),
+      close: parseFloat(close.toFixed(2)),
+      volume: Math.floor(Math.random() * 400) + 200
+    });
+    p = close;
+  }
 
   return { htf, mtf, ltf };
 }

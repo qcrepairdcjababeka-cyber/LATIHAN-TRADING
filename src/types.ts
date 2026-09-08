@@ -88,16 +88,134 @@ export interface Storyline {
   targetPrice: number;
 }
 
-// 7. GUN NUMBER (GANN / PSYCHOLOGICAL KEY ROUND NUMBERS)
-export interface GunNumberInfo {
-  nearestGunNumber: number;
-  allLevels: number[];
-  distanceToNearest: number;
-  isAtGunNumber: boolean; // Harga sedang tepat di level Gun Number (+- 0.15%)
-  levelType: 'MAJOR_GANN_000' | 'PSYCHOLOGICAL_500' | 'KEY_PIVOT_200_800';
+// 8. PDL SWEEP & MITIGATION BLOCK ENTRY MODEL (SMC / ICT INSTITUTIONAL)
+export interface PdlSweepModel {
+  sweepType: 'PDL_SWEEP_BUY' | 'PDH_SWEEP_SELL';
+  sweepSpotPrice: number; // Low/High yang disweep (PDL/PDH)
+  sweepSpotCandleIndex: number;
+  sweepSpotTime?: number;
+  orderBlock: {
+    top: number;
+    bottom: number;
+    candleIndex: number;
+  };
+  mssLevel: number; // Market Structure Shift Level
+  mssCandleIndex?: number;
+  idmLevel: number; // Inducement Pullback Level
+  idmCandleIndex?: number;
+  bosLevel: number; // Break of Structure Level (Horizontal line)
+  bosCandleIndex?: number;
+  mitigationBlock: {
+    top: number;
+    bottom: number;
+    startIndex: number;
+    endIndex: number;
+  };
+  entryPrice: number; // Exact retest at Mitigation Block
+  stopLoss: number; // Below/above Mitigation Block / Swing
+  takeProfit1: number; // TP1: Target Liquidity Pool 1
+  takeProfit2: number; // TP2: Major Target / Extreme Liquidity (R:R 1:4 - 1:10+)
+  status: 'SWEEP_DETECTED' | 'MSS_FORMED' | 'BOS_CONFIRMED' | 'MITIGATION_ENTRY_ACTIVE' | 'RUNNING_TO_TARGET';
+  narrative: string;
 }
 
-// COMPLETE UNIFIED SIGNAL FOR THE 7-STRATEGY SYSTEM
+// 9. ICT + CRT HYBRID INSTITUTIONAL ENTRY MODEL (INNER CIRCLE TRADER x CANDLE RANGE THEORY)
+export type StrategyModelMode = 'ICT_CRT' | 'CRT_9AM';
+
+export interface CrtBenchmarkRange {
+  timeLabel: string; // "08:00 - 09:00 AM NY" / "Benchmark Mother Range"
+  rangeHigh: number; // Buy-Side Liquidity pool above
+  rangeLow: number;  // Sell-Side Liquidity pool below
+  equilibrium: number; // 50% Fair Value Midpoint (RH + RL) / 2
+  rangeSize: number;
+  candleIndex: number;
+}
+
+export interface IctLiquiditySweep {
+  type: 'SSL_SWEEP_BULLISH' | 'BSL_SWEEP_BEARISH';
+  liquidityPool: 'SELL_SIDE_LIQUIDITY' | 'BUY_SIDE_LIQUIDITY';
+  sweepPrice: number;
+  sweepCandleIndex: number;
+  sweepWickExcess: number;
+  turtleSoupConfirmed: boolean;
+}
+
+export interface IctFairValueGap {
+  type: 'BISI' | 'SIBI'; // Buyside Imbalance Sellside Inefficiency (BULLISH) vs Sellside Imbalance Buyside Inefficiency (BEARISH)
+  top: number;
+  bottom: number;
+  midpoint: number;
+  startIndex: number;
+}
+
+export interface IctOrderBlock {
+  top: number;
+  bottom: number;
+  candleIndex: number;
+}
+
+export interface KeyLevelZone {
+  high: number;           // Batas atas area key level valid
+  low: number;            // Batas bawah area key level valid
+  sweetSpot: number;      // Titik presisi maksimal (Sweet Spot OTE 70.5% & FVG Mean Threshold)
+  oteFib62: number;       // Level Fibonacci 62%
+  oteFib705: number;      // Level Fibonacci 70.5% (Golden Pocket)
+  oteFib79: number;       // Level Fibonacci 79%
+  zoneType: 'BISI_OTE_KEY_LEVEL' | 'SIBI_OTE_KEY_LEVEL';
+  label: string;          // e.g. "Area Key Level FVG BISI + OTE 70.5%"
+  confluences: string[];  // e.g. ["Retest FVG BISI", "Golden OTE 70.5%", "Order Block Base", "CRT Range Confluence"]
+  status: 'IN_ZONE' | 'APPROACHING' | 'SWEET_SPOT_HIT' | 'REJECTED_RUNNING';
+  precisionScore: number; // e.g. 96 (%)
+}
+
+export interface IctCrtModel {
+  session: 'CURRENT_RUNNING_CANDLE' | 'NY_OPEN_KILLZONE' | 'LONDON_KILLZONE' | 'OVERALL';
+  benchmark: CrtBenchmarkRange;
+  liquiditySweep: IctLiquiditySweep;
+  reEntryConfirmed: boolean;
+  displacementMss: {
+    level: number;
+    candleIndex: number;
+    isConfirmed: boolean;
+  };
+  fairValueGap: IctFairValueGap;
+  orderBlock: IctOrderBlock;
+  oteRetestZone: {
+    fib62: number;
+    fib79: number;
+    optimalEntry: number;
+  };
+  keyLevelZone?: KeyLevelZone; // Area Key Level untuk Entri Valid dan Presisi
+  entryPrice: number; // Sniper entry at FVG / CRT Boundary retest
+  stopLoss: number;   // Locked behind ICT Turtle Soup extreme wick
+  takeProfit1: number; // TP1: 50% CRT Equilibrium (Partial scale-out 50% + BEP)
+  takeProfit2: number; // TP2: Opposing CRT Boundary (Major DOL)
+  takeProfit3?: number; // TP3: External Liquidity Pool
+  riskRewardRatio: number;
+  phase: 'BENCHMARK_MAPPED' | 'TURTLE_SOUP_SWEEP' | 'DISPLACEMENT_MSS' | 'FVG_OTE_ENTRY_ACTIVE' | 'RUNNING_TO_DOL';
+  narrative: string;
+
+  // Compatibility aliases
+  sweepType: 'BULLISH_ICT_CRT' | 'BEARISH_ICT_CRT' | 'BULLISH_SWEEP' | 'BEARISH_SWEEP' | 'BULLISH_CRT_9AM' | 'BEARISH_CRT_9AM';
+  sweepPrice: number;
+  sweepCandleIndex: number;
+  sweepWickExcess: number;
+  mssLevel: number;
+  mssCandleIndex?: number;
+  mssConfirmed?: boolean;
+  fvgMitigated?: boolean;
+  fvgMitigationZone: {
+    top: number;
+    bottom: number;
+    startIndex: number;
+  };
+}
+
+// Backward compatibility alias for CRT 9AM
+export type Crt9AmModel = IctCrtModel;
+export type Crt9AmBenchmarkRange = CrtBenchmarkRange;
+
+// COMPLETE UNIFIED SIGNAL FOR INSTITUTIONAL ENTRY MODELS
 export interface TradingSignal {
   id: string;
   type: 'BUY' | 'SELL';
@@ -105,14 +223,21 @@ export interface TradingSignal {
   timeframe: string;
   entryPrice: number;
   stopLoss: number;
-  takeProfit1: number; // TP1: Target Mid / Next SNR
-  takeProfit2: number; // TP2: Target Storyline Major Zone
-  takeProfit3?: number;
+  takeProfit1: number; // TP1: 50% CRT Equilibrium (Konsisten Terkunci)
+  takeProfit2: number; // TP2: Opposing CRT Boundary / Major DOL (Konsisten Terkunci)
+  takeProfit3?: number; // TP3: External Liquidity Pool
   riskRewardRatio: number;
-  setupType: 'ZONA_1_LOT_FM' | 'ZERO_FLOATING_ENTRY' | 'VBO_ENGULFING_RETEST' | 'KODE_6C_PULLBACK' | 'KODE_9C_REVERSAL';
+  setupType: 'ICT_CRT_BULLISH' | 'ICT_CRT_BEARISH' | 'CRT_9AM_BULLISH' | 'CRT_9AM_BEARISH' | 'PDL_SWEEP_MITIGATION' | 'PDH_SWEEP_MITIGATION';
+  strategyMode?: StrategyModelMode;
   explanation: string;
   timestamp: number;
   status: 'pending' | 'active' | 'hit_tp' | 'hit_sl' | 'cancelled_and_flipped';
+
+  // STRATEGY ENGINE DATA
+  keyLevelZone?: KeyLevelZone;
+  ictCrt?: IctCrtModel;
+  crt9Am?: IctCrtModel;
+  pdlSweep?: PdlSweepModel;
 
   // 7 STRATEGY PILLARS DATA
   stf: SifirTFHierarchy;
@@ -121,7 +246,6 @@ export interface TradingSignal {
   cycle6C9C: CycleCount6C9C;
   zona1Lot: Zona1LotFM;
   storyline: Storyline;
-  gunNumber: GunNumberInfo;
 
   // Compatibility flags
   confirmation: string;
@@ -147,14 +271,17 @@ export interface ScanResult {
   ltfCandles: Candle[]; // M5 / M1
   fiveMinCandles: Candle[]; // Alias for LTF
 
-  // 7 Strategy Analysis Objects
+  // 7 Strategy Analysis Objects & PDL Sweep Engine
   stfHierarchy: SifirTFHierarchy;
   activeEngulfingZones: EngulfingZone[];
   zeroFloatingZones: ZeroFloatingZone[];
   currentCycle: CycleCount6C9C;
   zona1Lot: Zona1LotFM;
   storyline: Storyline;
-  gunNumber: GunNumberInfo;
+  pdlSweepModel: PdlSweepModel | null;
+  crt9AmModel: Crt9AmModel | null;
+  ictCrtModel: IctCrtModel | null;
+  strategyMode?: StrategyModelMode;
 
   // Signal Output
   activeSignal: TradingSignal | null;
@@ -171,4 +298,25 @@ export interface ScanResult {
   latest15mAnalysisBox2?: any;
   latest15mAnalysisBox3?: any;
 }
+
+// FRESH BUY & SELL SIGNAL ALERT NOTIFICATION
+export interface FreshSignalAlert {
+  id: string;
+  symbol: string;
+  type: 'BUY' | 'SELL';
+  setupType: string;
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit1: number;
+  takeProfit2: number;
+  riskRewardRatio: number;
+  timestamp: number;
+  timeFormatted: string;
+  source: 'MULTICHART' | 'RADAR_SCANNER';
+  read: boolean;
+  changeDescription: string;
+  confirmation: string;
+  keyLevelZone?: KeyLevelZone;
+}
+
 

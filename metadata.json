@@ -1,6 +1,6 @@
 {
   "name": "H4 Box & 5M/15M Breakout Re-entry Scanner",
-  "description": "Multi-timeframe 7-Pillar STF trading system and scanner covering Sifir Time Frame (4H, 15M, 5M), Valid Breakout & Engulfing, Zero Floating Zona, Kode 6C.9C, Zona 1 Lot [FM], Storyline, and Gun Number across crypto tokens and Gold (XAUUSD).",
+  "description": "Sistem trading institusional berbasis Model Entri ICT (Inner Circle Trader) digabungkan dengan CRT (Candle Range Theory) pada candle yang sedang berjalan saat ini (Current Running Candle). Dilengkapi deteksi rentang lilin berjalan, ICT Liquidity Sweep (Turtle Soup SSL/BSL), Displacement & 5M MSS, FVG Mitigation, Area Key Level untuk entri valid dan presisi tinggi (konfluensi OTE Fib 62%-79% & FVG BISI/SIBI Sweet Spot sniper), target terkunci konsisten (50% CRT EQ & Opposing Boundary DOL), serta notifikasi alert audio & visual real-time ketika terjadi perubahan sinyal Fresh BUY dan SELL pada Gold XAU/USD dan kripto Binance.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
