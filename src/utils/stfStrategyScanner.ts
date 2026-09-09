@@ -24,6 +24,89 @@ import {
 // ==========================================
 // 8. PDL SWEEP & MITIGATION BLOCK ENGINE (SMC / ICT INSTITUTIONAL)
 // ==========================================
+
+/**
+ * Menemukan High Terakhir secara presisi pada M5 (LTF).
+ * Dalam metodologi ICT, MSS Bullish terbentuk ketika harga menembus Swing High terakhir
+ * yang terbentuk sebelum titik sapuan likuiditas (sweep SSL low).
+ */
+export function findPreciseM5LastHigh(
+  candles: Candle[],
+  sweepIdx: number
+): { high: number; candleIndex: number } {
+  if (!candles || candles.length === 0) return { high: 0, candleIndex: 0 };
+  const safeSweepIdx = Math.min(Math.max(1, sweepIdx), candles.length - 1);
+  const searchMin = Math.max(0, safeSweepIdx - 15);
+
+  // 1. Prioritaskan swing high fraktal 3-lilin sebelum sweep: high[i] >= high[i-1] & high[i] >= high[i+1]
+  for (let i = safeSweepIdx - 1; i > searchMin; i--) {
+    const c = candles[i];
+    const prev = candles[i - 1];
+    const next = candles[i + 1];
+    if (prev && next && c.high >= prev.high && c.high >= next.high) {
+      return { high: parseFloat(c.high.toFixed(4)), candleIndex: i };
+    }
+  }
+
+  // 2. Jika tidak ada fraktal 3-lilin sempurna, cari puncak high tertinggi pada leg swing sebelum sweep
+  let bestHigh = -Infinity;
+  let bestIdx = Math.max(0, safeSweepIdx - 1);
+  for (let i = safeSweepIdx - 1; i >= searchMin; i--) {
+    if (candles[i].high > bestHigh) {
+      bestHigh = candles[i].high;
+      bestIdx = i;
+    }
+  }
+
+  if (bestHigh !== -Infinity) {
+    return { high: parseFloat(bestHigh.toFixed(4)), candleIndex: bestIdx };
+  }
+
+  const fallback = candles[safeSweepIdx - 1] || candles[safeSweepIdx];
+  return { high: parseFloat(fallback.high.toFixed(4)), candleIndex: Math.max(0, safeSweepIdx - 1) };
+}
+
+/**
+ * Menemukan Low Terakhir secara presisi pada M5 (LTF).
+ * Dalam metodologi ICT, MSS Bearish terbentuk ketika harga menembus Swing Low terakhir
+ * yang terbentuk sebelum titik sapuan likuiditas (sweep BSL high).
+ */
+export function findPreciseM5LastLow(
+  candles: Candle[],
+  sweepIdx: number
+): { low: number; candleIndex: number } {
+  if (!candles || candles.length === 0) return { low: 0, candleIndex: 0 };
+  const safeSweepIdx = Math.min(Math.max(1, sweepIdx), candles.length - 1);
+  const searchMin = Math.max(0, safeSweepIdx - 15);
+
+  // 1. Prioritaskan swing low fraktal 3-lilin sebelum sweep: low[i] <= low[i-1] & low[i] <= low[i+1]
+  for (let i = safeSweepIdx - 1; i > searchMin; i--) {
+    const c = candles[i];
+    const prev = candles[i - 1];
+    const next = candles[i + 1];
+    if (prev && next && c.low <= prev.low && c.low <= next.low) {
+      return { low: parseFloat(c.low.toFixed(4)), candleIndex: i };
+    }
+  }
+
+  // 2. Jika tidak ada fraktal 3-lilin sempurna, cari lembah low terendah pada leg swing sebelum sweep
+  let bestLow = Infinity;
+  let bestIdx = Math.max(0, safeSweepIdx - 1);
+  for (let i = safeSweepIdx - 1; i >= searchMin; i--) {
+    if (candles[i].low < bestLow) {
+      bestLow = candles[i].low;
+      bestIdx = i;
+    }
+  }
+
+  if (bestLow !== Infinity) {
+    return { low: parseFloat(bestLow.toFixed(4)), candleIndex: bestIdx };
+  }
+
+  const fallback = candles[safeSweepIdx - 1] || candles[safeSweepIdx];
+  return { low: parseFloat(fallback.low.toFixed(4)), candleIndex: Math.max(0, safeSweepIdx - 1) };
+}
+
 export function detectPdlSweepModel(
   ltfCandles: Candle[],
   htfCandles: Candle[],
@@ -55,16 +138,10 @@ export function detectPdlSweepModel(
       candleIndex: minLowIdx
     };
 
-    // 3. MARKET STRUCTURE SHIFT (MSS): Break of minor lower high after sweep
-    let mssIdx = Math.min(minLowIdx + 4, n - 8);
-    let mssHigh = -Infinity;
-    for (let i = minLowIdx + 1; i <= Math.min(minLowIdx + 9, n - 7); i++) {
-      if (ltfCandles[i].high > mssHigh) {
-        mssHigh = ltfCandles[i].high;
-        mssIdx = i;
-      }
-    }
-    const mssLevel = mssHigh > sweepSpotPrice ? mssHigh : sweepSpotPrice * 1.008;
+    // 3. MARKET STRUCTURE SHIFT (MSS): Presisi dari High Terakhir sebelum sweep
+    const preciseHigh = findPreciseM5LastHigh(ltfCandles, minLowIdx);
+    const mssLevel = preciseHigh.high > sweepSpotPrice ? preciseHigh.high : parseFloat((sweepSpotPrice * 1.008).toFixed(4));
+    const mssIdx = preciseHigh.candleIndex;
 
     // 4. INDUCEMENT (IDM): Internal pullback low testing or defending the OB
     let idmIdx = Math.min(mssIdx + 3, n - 5);
@@ -147,16 +224,10 @@ export function detectPdlSweepModel(
       candleIndex: maxHighIdx
     };
 
-    // MSS: Break of minor higher low
-    let mssIdx = Math.min(maxHighIdx + 4, n - 8);
-    let mssLow = Infinity;
-    for (let i = maxHighIdx + 1; i <= Math.min(maxHighIdx + 9, n - 7); i++) {
-      if (ltfCandles[i].low < mssLow) {
-        mssLow = ltfCandles[i].low;
-        mssIdx = i;
-      }
-    }
-    const mssLevel = mssLow < sweepSpotPrice ? mssLow : sweepSpotPrice * 0.992;
+    // 3. MARKET STRUCTURE SHIFT (MSS): Presisi dari Low Terakhir sebelum sweep
+    const preciseLow = findPreciseM5LastLow(ltfCandles, maxHighIdx);
+    const mssLevel = preciseLow.low < sweepSpotPrice ? preciseLow.low : parseFloat((sweepSpotPrice * 0.992).toFixed(4));
+    const mssIdx = preciseLow.candleIndex;
 
     // IDM: Pullback high
     let idmIdx = Math.min(mssIdx + 3, n - 5);
@@ -268,15 +339,24 @@ export function detectIctCrtModel(
     const sweepWickExcess = parseFloat(Math.abs(rangeLow - sweepPrice).toFixed(4));
 
     // 2. Re-Entry into the Running Candle's Range & 5M Market Structure Shift (MSS)
-    let mssIdx = Math.max(sweepIdx + 1, n - 2);
-    let mssHigh = -Infinity;
+    // Presisi: Level MSS BULLISH diambil tepat dari HIGH TERAKHIR (Swing High) sebelum sweep SSL
+    const preciseLastHigh = findPreciseM5LastHigh(ltfCandles, sweepIdx);
+    const mssLevel = preciseLastHigh.high > sweepPrice ? preciseLastHigh.high : parseFloat(((rangeLow + equilibrium) / 2).toFixed(4));
+    const mssIdx = preciseLastHigh.candleIndex;
+
+    // Verifikasi penembusan struktur 5M MSS (Displacement break)
+    let isMssConfirmed = false;
+    let dispHigh = mssLevel;
     for (let i = sweepIdx + 1; i < n; i++) {
-      if (ltfCandles[i].high > mssHigh) {
-        mssHigh = ltfCandles[i].high;
-        mssIdx = i;
+      if (ltfCandles[i].high >= mssLevel || ltfCandles[i].close >= mssLevel) {
+        isMssConfirmed = true;
+      }
+      if (ltfCandles[i].high > dispHigh) {
+        dispHigh = ltfCandles[i].high;
       }
     }
-    const mssLevel = mssHigh > sweepPrice ? parseFloat(mssHigh.toFixed(4)) : parseFloat(((rangeLow + equilibrium) / 2).toFixed(4));
+    const effectiveDispHigh = Math.max(dispHigh, mssLevel * 1.0005);
+    const dispRange = Math.abs(effectiveDispHigh - sweepPrice);
 
     // 3. ICT Fair Value Gap (FVG BISI - Buyside Imbalance Sellside Inefficiency)
     const fvgTop = parseFloat((rangeLow * 1.0015).toFixed(4));
@@ -292,12 +372,10 @@ export function detectIctCrtModel(
     };
 
     // 5. ICT Optimal Trade Entry (OTE 62% - 79% Fib) and Area Key Level Valid & Presisi
-    const dispRange = Math.abs(mssLevel - sweepPrice);
     const ote62 = parseFloat((mssLevel - dispRange * 0.62).toFixed(4));
     const ote705 = parseFloat((mssLevel - dispRange * 0.705).toFixed(4)); // Golden Pocket Sweet Spot
     const ote79 = parseFloat((mssLevel - dispRange * 0.79).toFixed(4));
 
-    // AREA KEY LEVEL PRESISI: Confluence batas FVG BISI + OTE 62%-79% Golden Pocket + Base CRT
     const keyLevelHigh = parseFloat(Math.max(fvgTop, ote62, rangeLow * 1.001).toFixed(4));
     const keyLevelLow = parseFloat(Math.min(fvgBottom, ote79, rangeLow * 0.998).toFixed(4));
     // Sweet Spot titik entri sniper maksimal
@@ -369,7 +447,7 @@ export function detectIctCrtModel(
       displacementMss: {
         level: mssLevel,
         candleIndex: mssIdx,
-        isConfirmed: true
+        isConfirmed: isMssConfirmed
       },
       fairValueGap: {
         type: 'BISI',
@@ -392,7 +470,7 @@ export function detectIctCrtModel(
       takeProfit3,
       riskRewardRatio: calculatedRR,
       phase: 'FVG_OTE_ENTRY_ACTIVE',
-      narrative: `⚡ MODEL ENTRI ICT + CRT (BULLISH): Berdasarkan Candle yang Berjalan Saat Ini (Current Running Candle), Range acuan terbentuk di $${formatPrice(rangeLow)} - $${formatPrice(rangeHigh)} (50% EQ: $${formatPrice(equilibrium)}). Terjadi manipulasi ICT Turtle Soup menyapu Sell-Side Liquidity (SSL) di bawah Range Low candle berjalan pada $${formatPrice(sweepPrice)}. Harga langsung re-entry kembali ke dalam body candle berjalan dengan displacement tajam dan konfirmasi 5M MSS di $${formatPrice(mssLevel)}, meninggalkan FVG BISI institusional. Area Key Level Presisi aktif di $${formatPrice(keyLevelLow)} - $${formatPrice(keyLevelHigh)} (Sweet Spot OTE 70.5%: $${formatPrice(sweetSpot)}), SL terlindungi di $${formatPrice(stopLoss)} menuju target utama Range High BSL & Draw on Liquidity (DOL) di $${formatPrice(takeProfit2)} (R:R 1:${calculatedRR}).`,
+      narrative: `⚡ MODEL ENTRI ICT + CRT (BULLISH): Berdasarkan Candle yang Berjalan Saat Ini (Current Running Candle), Range acuan terbentuk di $${formatPrice(rangeLow)} - $${formatPrice(rangeHigh)} (50% EQ: $${formatPrice(equilibrium)}). Terjadi manipulasi ICT Turtle Soup menyapu Sell-Side Liquidity (SSL) di bawah Range Low candle berjalan pada $${formatPrice(sweepPrice)}. Terkonfirmasi 5M MSS presisi dari High Terakhir di $${formatPrice(mssLevel)}, harga re-entry dengan displacement tajam dan meninggalkan FVG BISI institusional. Area Key Level Presisi aktif di $${formatPrice(keyLevelLow)} - $${formatPrice(keyLevelHigh)} (Sweet Spot OTE 70.5%: $${formatPrice(sweetSpot)}), SL terlindungi di $${formatPrice(stopLoss)} menuju target utama Range High BSL & Draw on Liquidity (DOL) di $${formatPrice(takeProfit2)} (R:R 1:${calculatedRR}).`,
 
       // Compatibility aliases
       sweepType: 'BULLISH_ICT_CRT',
@@ -422,15 +500,24 @@ export function detectIctCrtModel(
     const sweepWickExcess = parseFloat(Math.abs(sweepPrice - rangeHigh).toFixed(4));
 
     // 2. Re-Entry into the Running Candle's Range & 5M Market Structure Shift (MSS)
-    let mssIdx = Math.max(sweepIdx + 1, n - 2);
-    let mssLow = Infinity;
+    // Presisi: Level MSS BEARISH diambil tepat dari LOW TERAKHIR (Swing Low) sebelum sweep BSL
+    const preciseLastLow = findPreciseM5LastLow(ltfCandles, sweepIdx);
+    const mssLevel = preciseLastLow.low < sweepPrice ? preciseLastLow.low : parseFloat(((rangeHigh + equilibrium) / 2).toFixed(4));
+    const mssIdx = preciseLastLow.candleIndex;
+
+    // Verifikasi penembusan struktur 5M MSS (Displacement break)
+    let isMssConfirmed = false;
+    let dispLow = mssLevel;
     for (let i = sweepIdx + 1; i < n; i++) {
-      if (ltfCandles[i].low < mssLow) {
-        mssLow = ltfCandles[i].low;
-        mssIdx = i;
+      if (ltfCandles[i].low <= mssLevel || ltfCandles[i].close <= mssLevel) {
+        isMssConfirmed = true;
+      }
+      if (ltfCandles[i].low < dispLow) {
+        dispLow = ltfCandles[i].low;
       }
     }
-    const mssLevel = mssLow < sweepPrice ? parseFloat(mssLow.toFixed(4)) : parseFloat(((rangeHigh + equilibrium) / 2).toFixed(4));
+    const effectiveDispLow = Math.min(dispLow, mssLevel * 0.9995);
+    const dispRange = Math.abs(sweepPrice - effectiveDispLow);
 
     // 3. ICT Fair Value Gap (FVG SIBI - Sellside Imbalance Buyside Inefficiency)
     const fvgTop = parseFloat((rangeHigh * 1.0015).toFixed(4));
@@ -446,7 +533,6 @@ export function detectIctCrtModel(
     };
 
     // 5. ICT Optimal Trade Entry (OTE 62% - 79% Fib) and Area Key Level Valid & Presisi
-    const dispRange = Math.abs(sweepPrice - mssLevel);
     const ote62 = parseFloat((mssLevel + dispRange * 0.62).toFixed(4));
     const ote705 = parseFloat((mssLevel + dispRange * 0.705).toFixed(4)); // Golden Pocket Sweet Spot
     const ote79 = parseFloat((mssLevel + dispRange * 0.79).toFixed(4));
@@ -523,7 +609,7 @@ export function detectIctCrtModel(
       displacementMss: {
         level: mssLevel,
         candleIndex: mssIdx,
-        isConfirmed: true
+        isConfirmed: isMssConfirmed
       },
       fairValueGap: {
         type: 'SIBI',
@@ -546,7 +632,7 @@ export function detectIctCrtModel(
       takeProfit3,
       riskRewardRatio: calculatedRR,
       phase: 'FVG_OTE_ENTRY_ACTIVE',
-      narrative: `⚡ MODEL ENTRI ICT + CRT (BEARISH): Berdasarkan Candle yang Berjalan Saat Ini (Current Running Candle), Range acuan terbentuk di $${formatPrice(rangeLow)} - $${formatPrice(rangeHigh)} (50% EQ: $${formatPrice(equilibrium)}). Terjadi manipulasi ICT Turtle Soup menyapu Buy-Side Liquidity (BSL) di atas Range High candle berjalan pada $${formatPrice(sweepPrice)}. Harga langsung re-entry kembali ke dalam body candle berjalan dengan displacement tajam dan konfirmasi 5M MSS di $${formatPrice(mssLevel)}, meninggalkan FVG SIBI institusional. Area Key Level Presisi aktif di $${formatPrice(keyLevelLow)} - $${formatPrice(keyLevelHigh)} (Sweet Spot OTE 70.5%: $${formatPrice(sweetSpot)}), SL terlindungi di $${formatPrice(stopLoss)} menuju target utama Range Low SSL & Draw on Liquidity (DOL) di $${formatPrice(takeProfit2)} (R:R 1:${calculatedRR}).`,
+      narrative: `⚡ MODEL ENTRI ICT + CRT (BEARISH): Berdasarkan Candle yang Berjalan Saat Ini (Current Running Candle), Range acuan terbentuk di $${formatPrice(rangeLow)} - $${formatPrice(rangeHigh)} (50% EQ: $${formatPrice(equilibrium)}). Terjadi manipulasi ICT Turtle Soup menyapu Buy-Side Liquidity (BSL) di atas Range High candle berjalan pada $${formatPrice(sweepPrice)}. Terkonfirmasi 5M MSS presisi dari Low Terakhir di $${formatPrice(mssLevel)}, harga re-entry dengan displacement tajam dan meninggalkan FVG SIBI institusional. Area Key Level Presisi aktif di $${formatPrice(keyLevelLow)} - $${formatPrice(keyLevelHigh)} (Sweet Spot OTE 70.5%: $${formatPrice(sweetSpot)}), SL terlindungi di $${formatPrice(stopLoss)} menuju target utama Range Low SSL & Draw on Liquidity (DOL) di $${formatPrice(takeProfit2)} (R:R 1:${calculatedRR}).`,
 
       // Compatibility aliases
       sweepType: 'BEARISH_ICT_CRT',
@@ -966,26 +1052,29 @@ export function scanSTFStrategy(
   }
 
   const isMatchingMode = prevSignal && (prevSignal.strategyMode === 'ICT_CRT' || prevSignal.strategyMode === 'CRT_9AM');
+  const isRecentlyCompleted = prevSignal && (prevSignal.status === 'hit_sl' || prevSignal.status === 'hit_tp') && (Date.now() - (prevSignal.timestamp || 0) < 600000);
 
-  if (prevSignal && prevSignal.status === 'active' && prevSignal.symbol === symbol && isMatchingMode) {
+  if (prevSignal && (prevSignal.status === 'active' || isRecentlyCompleted) && prevSignal.symbol === symbol && isMatchingMode) {
     const isBuy = prevSignal.type === 'BUY';
     const lastLtf = ltfCandles[ltfCandles.length - 1];
     const candleHigh = Math.max(currentPrice, lastLtf?.high || currentPrice);
     const candleLow = Math.min(currentPrice, lastLtf?.low || currentPrice);
 
-    let updatedStatus: TradingSignal['status'] = 'active';
+    let updatedStatus: TradingSignal['status'] = prevSignal.status;
 
-    if (isBuy) {
-      if (candleLow <= prevSignal.stopLoss) {
-        updatedStatus = 'hit_sl';
-      } else if (candleHigh >= prevSignal.takeProfit2) {
-        updatedStatus = 'hit_tp';
-      }
-    } else {
-      if (candleHigh >= prevSignal.stopLoss) {
-        updatedStatus = 'hit_sl';
-      } else if (candleLow <= prevSignal.takeProfit2) {
-        updatedStatus = 'hit_tp';
+    if (prevSignal.status === 'active') {
+      if (isBuy) {
+        if (candleLow <= prevSignal.stopLoss) {
+          updatedStatus = 'hit_sl';
+        } else if (candleHigh >= prevSignal.takeProfit2) {
+          updatedStatus = 'hit_tp';
+        }
+      } else {
+        if (candleHigh >= prevSignal.stopLoss) {
+          updatedStatus = 'hit_sl';
+        } else if (candleLow <= prevSignal.takeProfit2) {
+          updatedStatus = 'hit_tp';
+        }
       }
     }
 

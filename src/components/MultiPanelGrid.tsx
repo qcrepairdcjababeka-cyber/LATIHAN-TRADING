@@ -301,10 +301,10 @@ export default function MultiPanelGrid({
                   3. ICT DISPLACEMENT &amp; 5M MSS
                 </span>
                 <p className="font-bold text-slate-200 leading-snug">
-                  MSS Terkonfirmasi di ${formatPrice(ictCrt.mssLevel)}
+                  MSS Terkonfirmasi di ${formatPrice(ictCrt.mssLevel)} ({ictCrt.liquiditySweep?.type === 'SSL_SWEEP_BULLISH' || ictCrt.sweepType === 'BULLISH_ICT_CRT' ? 'High Terakhir' : 'Low Terakhir'})
                 </p>
                 <div className="text-[10px] text-amber-300 font-mono">
-                  Displacement candle menembus struktur &amp; re-entry
+                  Presisi penembusan level {ictCrt.liquiditySweep?.type === 'SSL_SWEEP_BULLISH' || ictCrt.sweepType === 'BULLISH_ICT_CRT' ? 'High Terakhir' : 'Low Terakhir'} M5 &amp; Re-entry
                 </div>
               </div>
             </div>

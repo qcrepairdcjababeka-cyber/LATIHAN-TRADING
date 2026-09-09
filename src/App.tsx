@@ -3,13 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Candle, TradingSignal, ScanResult, FreshSignalAlert } from './types';
+import React, { useState, useEffect } from 'react';
+import { Candle, TradingSignal, ScanResult } from './types';
 import { scanSTFStrategy, generateSyntheticSTFPair, formatPrice } from './utils/stfStrategyScanner';
 import { CRYPTO_TOKENS, XAUUSD_TOKENS, TOP_10_TOKENS, TOP_100_TOKENS, TOP_500_TOKENS, ALPHA_TOKENS, TokenInfo } from './data/cryptoTokens';
-import { alertSoundManager, sendDesktopNotification } from './utils/alertSound';
-import AlertNotificationToast from './components/AlertNotificationToast';
-import AlertHistoryModal from './components/AlertHistoryModal';
 import MultiPanelGrid from './components/MultiPanelGrid';
 import SimulationSandbox from './components/SimulationSandbox';
 import EducationalPortal from './components/EducationalPortal';
@@ -42,10 +39,6 @@ import {
   Compass,
   Award,
   Target,
-  Bell,
-  BellRing,
-  Volume2,
-  VolumeX,
 } from 'lucide-react';
 
 export default function App() {
@@ -53,187 +46,6 @@ export default function App() {
   const [symbol, setSymbol] = useState<string>('BTCUSDT');
   const [activeSignal, setActiveSignal] = useState<TradingSignal | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-
-  // Fresh BUY & SELL Alert Notification System
-  const previousSignalsRef = useRef<Map<string, { type: 'BUY' | 'SELL'; entryPrice: number; timestamp: number }>>(new Map());
-  const [freshAlerts, setFreshAlerts] = useState<FreshSignalAlert[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('ict_crt_fresh_alerts');
-        return saved ? JSON.parse(saved) : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
-  const [toastAlerts, setToastAlerts] = useState<FreshSignalAlert[]>([]);
-  const [isAlertModalOpen, setIsAlertModalOpen] = useState<boolean>(false);
-  const [isAudioMuted, setIsAudioMuted] = useState<boolean>(() => alertSoundManager.getMuted());
-
-  const toggleAudioMute = () => {
-    const next = !isAudioMuted;
-    setIsAudioMuted(next);
-    alertSoundManager.setMuted(next);
-  };
-
-  const checkAndTriggerFreshAlert = useCallback((sig: TradingSignal, source: 'MULTICHART' | 'RADAR_SCANNER' = 'MULTICHART') => {
-    if (!sig || !sig.symbol || !sig.type) return;
-    const sym = sig.symbol;
-    const prev = previousSignalsRef.current.get(sym);
-
-    const isTypeFlipped = prev && prev.type !== sig.type;
-    const isBrandNew = !prev;
-    const isFreshTimestamp = prev && (
-      (sig.timestamp - prev.timestamp > 300000) ||
-      (Math.abs(sig.entryPrice - prev.entryPrice) / (prev.entryPrice || 1) > 0.003)
-    );
-
-    if (isBrandNew || isTypeFlipped || isFreshTimestamp) {
-      previousSignalsRef.current.set(sym, {
-        type: sig.type,
-        entryPrice: sig.entryPrice,
-        timestamp: sig.timestamp || Date.now(),
-      });
-
-      let changeDesc = '';
-      if (isTypeFlipped) {
-        changeDesc = `Perubahan Tren! Sinyal ${prev.type} sebelumnya BERBALIK menjadi Fresh ${sig.type} (Konfirmasi Turtle Soup & 5M MSS).`;
-      } else if (isBrandNew) {
-        changeDesc = `Sinyal Baru Terkonfirmasi! Setup Fresh ${sig.type} valid pada model ICT + Candle Range Theory.`;
-      } else {
-        changeDesc = `Update Setup Fresh ${sig.type} terkonfirmasi pada area mitigasi FVG retest.`;
-      }
-
-      const newAlert: FreshSignalAlert = {
-        id: `${sym}-${sig.type}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        symbol: sym,
-        type: sig.type,
-        setupType: sig.setupType || 'ICT_CRT',
-        entryPrice: sig.entryPrice,
-        stopLoss: sig.stopLoss,
-        takeProfit1: sig.takeProfit1,
-        takeProfit2: sig.takeProfit2,
-        riskRewardRatio: sig.riskRewardRatio || 2.5,
-        timestamp: Date.now(),
-        timeFormatted: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        source,
-        read: false,
-        changeDescription: changeDesc,
-        confirmation: sig.confirmation || 'ICT Turtle Soup Sweep + 5M MSS + FVG Mitigation',
-        keyLevelZone: sig.keyLevelZone || sig.ictCrt?.keyLevelZone,
-      };
-
-      if (sig.type === 'BUY') {
-        alertSoundManager.playBuyChime();
-      } else {
-        alertSoundManager.playSellChime();
-      }
-
-      sendDesktopNotification(
-        `⚡ Fresh ${sig.type} Signal: ${sym}`,
-        `Entry: $${formatPrice(sig.entryPrice)} | SL: $${formatPrice(sig.stopLoss)} | TP2: $${formatPrice(sig.takeProfit2)}`
-      );
-
-      setToastAlerts((prevToasts) => [newAlert, ...prevToasts.slice(0, 3)]);
-      setFreshAlerts((prevHistory) => {
-        const updated = [newAlert, ...prevHistory.slice(0, 49)];
-        try {
-          localStorage.setItem('ict_crt_fresh_alerts', JSON.stringify(updated));
-        } catch {}
-        return updated;
-      });
-    }
-  }, []);
-
-  const triggerTestAlert = (type: 'BUY' | 'SELL') => {
-    const currentPrice = activeSignal?.entryPrice || (type === 'BUY' ? 64250 : 64800);
-    const sl = type === 'BUY' ? currentPrice * 0.992 : currentPrice * 1.008;
-    const tp1 = type === 'BUY' ? currentPrice * 1.012 : currentPrice * 0.988;
-    const tp2 = type === 'BUY' ? currentPrice * 1.025 : currentPrice * 0.975;
-
-    const testAlert: FreshSignalAlert = {
-      id: `test-${type}-${Date.now()}`,
-      symbol,
-      type,
-      setupType: type === 'BUY' ? 'ICT_CRT_BULLISH' : 'ICT_CRT_BEARISH',
-      entryPrice: currentPrice,
-      stopLoss: sl,
-      takeProfit1: tp1,
-      takeProfit2: tp2,
-      riskRewardRatio: 2.8,
-      timestamp: Date.now(),
-      timeFormatted: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      source: 'MULTICHART',
-      read: false,
-      changeDescription: `Tes Simulasi Alert: Terdeteksi perubahan sinyal Fresh ${type} pada ${symbol} dengan Area Key Level valid + Sweet Spot sniper!`,
-      confirmation: 'ICT Turtle Soup Sweep + 5M Displacement MSS + Retest FVG BISI/SIBI',
-      keyLevelZone: {
-        high: parseFloat((type === 'BUY' ? currentPrice * 1.0015 : currentPrice * 1.0035).toFixed(4)),
-        low: parseFloat((type === 'BUY' ? currentPrice * 0.9985 : currentPrice * 1.0005).toFixed(4)),
-        sweetSpot: currentPrice,
-        oteFib62: parseFloat((currentPrice * (type === 'BUY' ? 0.9992 : 1.0012)).toFixed(4)),
-        oteFib705: currentPrice,
-        oteFib79: parseFloat((currentPrice * (type === 'BUY' ? 0.9982 : 1.0022)).toFixed(4)),
-        zoneType: type === 'BUY' ? 'BISI_OTE_KEY_LEVEL' : 'SIBI_OTE_KEY_LEVEL',
-        label: `Area Key Level FVG ${type === 'BUY' ? 'BISI' : 'SIBI'} + OTE 70.5% Sweet Spot`,
-        confluences: [
-          `Retest FVG ${type === 'BUY' ? 'BISI' : 'SIBI'}`,
-          'Golden Pocket OTE 70.5% Sweet Spot',
-          'Re-entry Body Lilin Berjalan'
-        ],
-        status: 'SWEET_SPOT_HIT',
-        precisionScore: 96
-      }
-    };
-
-    if (type === 'BUY') {
-      alertSoundManager.playBuyChime();
-    } else {
-      alertSoundManager.playSellChime();
-    }
-
-    sendDesktopNotification(
-      `⚡ Tes Fresh ${type} Signal: ${symbol}`,
-      `Entry: $${formatPrice(currentPrice)} | TP2: $${formatPrice(tp2)} | SL: $${formatPrice(sl)}`
-    );
-
-    setToastAlerts((prev) => [testAlert, ...prev.slice(0, 3)]);
-    setFreshAlerts((prev) => {
-      const updated = [testAlert, ...prev.slice(0, 49)];
-      try {
-        localStorage.setItem('ict_crt_fresh_alerts', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-  };
-
-  const dismissToast = (id: string) => {
-    setToastAlerts((prev) => prev.filter((t) => t.id !== id));
-  };
-
-  const handleOpenChart = (targetSymbol: string) => {
-    setSymbol(targetSymbol);
-    setActiveTab('multichart');
-  };
-
-  const clearAllAlerts = () => {
-    setFreshAlerts([]);
-    setToastAlerts([]);
-    try {
-      localStorage.removeItem('ict_crt_fresh_alerts');
-    } catch {}
-  };
-
-  const markAllAlertsRead = () => {
-    setFreshAlerts((prev) => {
-      const updated = prev.map((a) => ({ ...a, read: true }));
-      try {
-        localStorage.setItem('ict_crt_fresh_alerts', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-  };
 
   // AI Assistant states
   const [aiLoading, setAiLoading] = useState<boolean>(false);
@@ -301,16 +113,10 @@ export default function App() {
           pairResult = scanSTFStrategy(t.symbol, syn.htf, syn.mtf, syn.ltf);
         }
         results.push(pairResult);
-        if (pairResult.activeSignal) {
-          checkAndTriggerFreshAlert(pairResult.activeSignal, 'RADAR_SCANNER');
-        }
       } catch {
         const syn = generateSyntheticSTFPair(i % 2 === 0 ? 'bullish' : 'bearish', 30, 40, 50);
         const pairResult = scanSTFStrategy(t.symbol, syn.htf, syn.mtf, syn.ltf);
         results.push(pairResult);
-        if (pairResult.activeSignal) {
-          checkAndTriggerFreshAlert(pairResult.activeSignal, 'RADAR_SCANNER');
-        }
       }
     }
 
@@ -406,39 +212,6 @@ export default function App() {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 sm:gap-2.5">
-          {/* Quick Audio Mute Toggle */}
-          <button
-            id="btn-toggle-sound"
-            type="button"
-            onClick={toggleAudioMute}
-            className={`px-2.5 py-1.5 border rounded-xl transition cursor-pointer flex items-center gap-1.5 text-xs font-bold ${
-              isAudioMuted
-                ? 'bg-rose-950/40 border-rose-500/30 text-rose-300 hover:bg-rose-950/60'
-                : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300 hover:bg-emerald-950/60'
-            }`}
-            title={isAudioMuted ? 'Suara Alert Bisu (Klik untuk Bunyikan)' : 'Suara Alert Aktif (Klik untuk Membisukan)'}
-          >
-            {isAudioMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
-            <span className="hidden md:inline">{isAudioMuted ? 'Bisu' : 'Audio ON'}</span>
-          </button>
-
-          {/* Fresh Alert Center Bell */}
-          <button
-            id="btn-alert-center"
-            type="button"
-            onClick={() => setIsAlertModalOpen(true)}
-            className="relative px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700/80 rounded-xl transition cursor-pointer flex items-center gap-1.5 text-xs font-bold shadow-sm"
-            title="Pusat Notifikasi Alert Sinyal Fresh"
-          >
-            <BellRing className={`w-4 h-4 ${freshAlerts.filter((a) => !a.read).length > 0 ? 'text-amber-400 animate-bounce' : 'text-slate-400'}`} />
-            <span className="hidden sm:inline">Alert Sinyal</span>
-            {freshAlerts.filter((a) => !a.read).length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black leading-none animate-pulse">
-                {freshAlerts.filter((a) => !a.read).length}
-              </span>
-            )}
-          </button>
-
           <button
             onClick={requestAiAnalysis}
             className="px-3.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer shadow-sm"
@@ -527,9 +300,6 @@ export default function App() {
             onSymbolChange={setSymbol}
             onActiveSignalFound={(sig) => {
               setActiveSignal(sig);
-              if (sig) {
-                checkAndTriggerFreshAlert(sig, 'MULTICHART');
-              }
             }}
           />
         )}
@@ -918,8 +688,8 @@ export default function App() {
                                         </span>
                                       )}
                                     </div>
-                                    <div className="text-[10px] text-amber-300 font-mono">
-                                      MSS: ${formatPrice(mssLevel || 0)}
+                                    <div className="text-[10px] text-amber-300 font-mono font-medium">
+                                      MSS ({isBullish ? 'High' : 'Low'} Terakhir): ${formatPrice(mssLevel || 0)}
                                     </div>
                                   </div>
                                 ) : (
@@ -1030,27 +800,9 @@ export default function App() {
       {/* 4. FOOTER */}
       <footer className="border-t border-slate-800/80 bg-slate-900/60 py-4 px-6 text-center text-xs text-slate-500 font-sans">
         <p>
-          ICT + CRT Institutional Trading System &bull; Integrasi Teknik ICT (Inner Circle Trader) digabungkan dengan CRT (Candle Range Theory) &bull; Benchmark Range (RH/RL/EQ), Liquidity Sweeps, 5M MSS, Fair Value Gap (FVG BISI/SIBI) Mitigation, Target Terkunci (TP1/TP2/SL), serta Notifikasi Alert Sinyal Fresh BUY &amp; SELL.
+          ICT + CRT Institutional Trading System &bull; Integrasi Teknik ICT (Inner Circle Trader) digabungkan dengan CRT (Candle Range Theory) &bull; Benchmark Range (RH/RL/EQ), Liquidity Sweeps, 5M MSS, Fair Value Gap (FVG BISI/SIBI) Mitigation, Area Key Level (OTE 62%-79% + FVG Sweet Spot), dan Target Terkunci (TP1/TP2/SL).
         </p>
       </footer>
-
-      {/* 5. FLOATING ALERT TOAST NOTIFICATIONS */}
-      <AlertNotificationToast
-        alerts={toastAlerts}
-        onDismiss={dismissToast}
-        onOpenChart={handleOpenChart}
-      />
-
-      {/* 6. ALERT HISTORY & SOUND SETTINGS MODAL */}
-      <AlertHistoryModal
-        isOpen={isAlertModalOpen}
-        onClose={() => setIsAlertModalOpen(false)}
-        alerts={freshAlerts}
-        onClearAll={clearAllAlerts}
-        onMarkAllRead={markAllAlertsRead}
-        onOpenChart={handleOpenChart}
-        onTriggerTestAlert={triggerTestAlert}
-      />
     </div>
   );
 }

@@ -400,7 +400,7 @@ export default function H4BoxChart({
               ? candleIndexToX(sweepRelIdx)
               : Math.max(paddingLeft + 50, benchX - 45);
 
-            const mssRelIdx = (crt.mssCandleIndex || (crt.sweepCandleIndex + 2)) - visibleRange.start;
+            const mssRelIdx = ((crt.mssCandleIndex !== undefined ? crt.mssCandleIndex : (crt.sweepCandleIndex + 2))) - visibleRange.start;
             const mssX = (mssRelIdx >= 0 && mssRelIdx < visibleCandles.length)
               ? candleIndexToX(mssRelIdx)
               : Math.max(paddingLeft + 75, benchX - 20);
@@ -503,20 +503,40 @@ export default function H4BoxChart({
                   </text>
                 </g>
 
-                {/* 3. ICT DISPLACEMENT & 5M MSS CONFIRMATION */}
-                <line
-                  x1={Math.max(paddingLeft, mssX - crtSpan)}
-                  y1={mssY}
-                  x2={Math.min(width - paddingRight - 10, mssX + crtSpan)}
-                  y2={mssY}
-                  stroke="#fbbf24"
-                  strokeWidth="1.4"
-                  strokeDasharray="2 2"
-                />
-                <rect x={mssX + 4} y={mssY - 6} width="56" height="12" rx="2" fill="#78350f" stroke="#fbbf24" strokeWidth="0.8" />
-                <text x={mssX + 32} y={mssY + 3} fill="#fef3c7" fontSize="6.5" fontWeight="black" textAnchor="middle">
-                  ICT 5M MSS
-                </text>
+                {/* 3. ICT DISPLACEMENT & 5M MSS CONFIRMATION (PRECISE FROM LAST HIGH / LOW) */}
+                <g>
+                  <title>{`5M MSS: Presisi dari ${isBuy ? 'High Terakhir' : 'Low Terakhir'} ($${formatPrice(crt.mssLevel)})`}</title>
+                  <line
+                    x1={Math.max(paddingLeft, mssX)}
+                    y1={mssY}
+                    x2={Math.min(width - paddingRight - 10, benchBoxEndX)}
+                    y2={mssY}
+                    stroke="#fbbf24"
+                    strokeWidth="1.5"
+                    strokeDasharray="3 2"
+                  />
+                  <circle cx={mssX} cy={mssY} r="2.5" fill="#fbbf24" stroke="#78350f" strokeWidth="1" />
+                  <rect
+                    x={Math.min(mssX + 4, width - paddingRight - 122)}
+                    y={isBuy ? mssY - 14 : mssY + 3}
+                    width="118"
+                    height="12"
+                    rx="2"
+                    fill="#78350f"
+                    stroke="#fbbf24"
+                    strokeWidth="0.8"
+                  />
+                  <text
+                    x={Math.min(mssX + 63, width - paddingRight - 63)}
+                    y={isBuy ? mssY - 5 : mssY + 11}
+                    fill="#fef3c7"
+                    fontSize="6.2"
+                    fontWeight="black"
+                    textAnchor="middle"
+                  >
+                    5M MSS: {isBuy ? 'High Terakhir' : 'Low Terakhir'} (${formatPrice(crt.mssLevel)})
+                  </text>
+                </g>
 
                 {/* 4. ICT FAIR VALUE GAP (FVG BISI / SIBI) MITIGATION ZONE */}
                 <rect
